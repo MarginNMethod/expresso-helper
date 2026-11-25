@@ -1,5 +1,5 @@
 /* Offline cache. Bump VERSION whenever any file changes (especially content.js). */
-var VERSION = 'v5';
+var VERSION = 'v6';
 var CACHE = 'bambino-' + VERSION;
 var FILES = [
   './',
@@ -8,6 +8,7 @@ var FILES = [
   './app.js',
   './icons.js',
   './content.js',
+  './art.js',
   './manifest.webmanifest',
   './icons/icon.svg',
   './icons/icon-180.png',

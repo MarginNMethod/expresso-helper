@@ -400,7 +400,10 @@
     scroller.appendChild(content);
     var ctx = { tab: tab, key: key, page: pg, scroller: scroller, content: content };
     def.ctx = ctx;
-    if (def.large !== false) {
+    var band = def.band;
+    if (band) { nav.classList.add('on-band', 'tone-' + band.tone); pg.classList.add('bag'); }
+    if (band) content.appendChild(bandHead(def));
+    else if (def.large !== false) {
       var head = el('div', 'page-head');
       head.appendChild(el('h1', 'large-title', rich(def.title || '')));
       if (def.subtitle) head.appendChild(el('p', 'page-sub', rich(def.subtitle)));
@@ -457,6 +460,17 @@
     scroller.addEventListener('scroll', onScroll, { passive: true });
     window.addEventListener('resize', measure);
     return { key: key, el: pg, def: def, scroller: scroller, measure: measure, nav: nav };
+  }
+
+  /* A flat colour block that opens a screen, like the front of a coffee bag: title, one drawing or number, one line. */
+  function bandHead(def) {
+    var b = def.band;
+    var h = el('div', 'band tone-' + b.tone);
+    h.innerHTML = '<h1 class="large-title band-title">' + rich(def.title || '') + '</h1>' +
+      (b.art ? '<div class="band-art">' + b.art + '</div>' : '') +
+      (b.num ? '<p class="band-num"><span>' + rich(b.num) + '</span>' + (b.unit ? '<small>' + rich(b.unit) + '</small>' : '') + '</p>' : '') +
+      (b.line ? '<p class="band-line">' + rich(b.line) + '</p>' : '');
+    return h;
   }
 
   /* ---------------------------------------------------- global interaction */
@@ -882,7 +896,20 @@
   }
   var PROSE_TYPES = ['p', 'h', 'list'];
   var BLOCKS = {
-    p: function (b) { return el('p', 'p', rich(b.text)); },
+    p: function (b) { return el('p', b.lead ? 'p lead' : 'p', rich(b.text)); },
+    art: function (b) { var draw = window.ART && window.ART[b.name]; return draw ? figure(draw(), b.caption, 'art') : null; },
+    leader: function (b) {
+      var d = el('dl', 'blk leader');
+      d.innerHTML = arr(b.items).map(function (it) { return '<div class="ld"><dt>' + rich(it.label) + '</dt><span class="dots" aria-hidden="true"></span><dd>' + rich(it.value) + '</dd></div>'; }).join('');
+      return d;
+    },
+    rule: function (b) { return el('p', 'blk rule', rich(b.text)); },
+    more: function (b, ctx) {
+      var d = el('details', 'blk more');
+      d.appendChild(el('summary', '', '<span>' + rich(b.title) + '</span>' + ic('chevron-right', { cls: 'chev', stroke: 2.4 })));
+      d.appendChild(renderBlocks(b.blocks, ctx));
+      return d;
+    },
     h: function (b) { var e = el('h2', 'h', rich(b.text)); if (b.id) { e.id = 'a-' + b.id; e.dataset.anchor = b.id; } return e; },
     list: function (b) {
       var l = el(b.ordered ? 'ol' : 'ul', 'list');
@@ -1330,9 +1357,21 @@
   }
 
   /* ================================================================ PAGES */
+  function nextLinks(rel) {
+    var w = el('nav', 'blk next-links');
+    w.setAttribute('aria-label', 'Continue lendo');
+    arr(rel).forEach(function (t) {
+      var d = describeLink(t);
+      if (!d) return;
+      var link = el('a', 'pressable', '<span>' + rich(d.title) + '</span>' + ic('chevron-right', { cls: 'chev', stroke: 2.4 }));
+      link.href = '#'; link.dataset.go = t;
+      w.appendChild(link);
+    });
+    return w;
+  }
   function articlePage(a) {
     return {
-      title: a.title, subtitle: a.subtitle,
+      title: a.title, subtitle: a.subtitle, band: a.band,
       build: function (ctx) {
         var f = document.createDocumentFragment();
         f.appendChild(renderBlocks(a.blocks, ctx));
@@ -1341,7 +1380,7 @@
           box.innerHTML = '<div class="eb-head"><span class="sq">' + ic('cup', { stroke: 2 }) + '</span><h2 class="eb-title">O que isso muda no seu espresso</h2></div>' + String(a.espresso).split('\n').map(function (t) { return '<p>' + rich(t) + '</p>'; }).join('');
           f.appendChild(box);
         }
-        f.appendChild(relatedList(a.related));
+        f.appendChild(a.band ? nextLinks(a.related) : relatedList(a.related));
         return f;
       },
       anchor: function (x) {
@@ -1386,35 +1425,33 @@
         build: function (ctx) {
           var c = C().comecar || {};
           var f = [];
-          if (c.intro) f.push(el('p', 'intro', rich(c.intro)));
-          var alerts = arr(c.alerts);
-          if (alerts.length) {
-            var ag = group(alerts.map(function (a) {
-              return rowLink({ go: a.id, title: a.title, sub: a.subtitle, lead: '<span class="sq">' + ic(a.icon && a.icon !== 'sparkle-none' ? a.icon : 'bolt', { stroke: 2 }) + '</span>', cls: 'alert-row' });
-            }), 'with-sq');
-            ag.style.marginTop = '16px';
-            f.push(ag);
-          }
+          arr(c.alerts).forEach(function (al) {
+            var k = al.home || {};
+            var v = el('a', 'block tone-volt pressable', '<span class="block-num">' + rich(k.num || al.title) + '</span>' +
+              '<span class="block-line">' + rich(k.line || al.subtitle || '') + '</span>' +
+              '<span class="block-go">' + rich(k.go || 'Abrir') + ic('chevron-right', { stroke: 2.8 }) + '</span>');
+            v.href = '#'; v.dataset.go = al.id;
+            f.push(v);
+          });
           var m = c.manual;
           if (m) {
             var card = arr(m.cards)[0] || {};
-            var t = el('a', 'feature');
+            var t = el('a', 'block tone-ink pressable', '<span class="block-title">' + rich(m.title) + '</span>' +
+              (card.ele ? '<span class="block-quote">' + rich(card.ele) + '</span>' : '') +
+              '<span class="block-go">' + arr(m.cards).length + ' respostas na ponta da língua' + ic('chevron-right', { stroke: 2.8 }) + '</span>');
             t.href = '#'; t.dataset.go = 'manual';
-            t.innerHTML = '<div class="feature-art" aria-hidden="true"><div class="bubbles">' +
-              (card.ele ? '<div class="bubble them">' + rich(card.ele) + '</div>' : '') +
-              (card.voce ? '<div class="bubble you">' + rich(firstSentence(card.voce)) + '</div>' : '') + '</div></div>' +
-              '<div class="feature-body"><div class="overline">Guia rápido</div><div class="feature-title">' + rich(m.title) + '</div>' +
-              (m.subtitle ? '<div class="feature-sub">' + rich(m.subtitle) + '</div>' : '') +
-              '<div class="feature-meta"><span class="foot">' + arr(m.cards).length + ' respostas · quiz de ' + arr(m.quiz).length + ' perguntas</span><span class="link-accent">Abrir' + ic('chevron-right', { stroke: 2.4 }) + '</span></div></div>';
             f.push(t);
           }
           var n = 0;
           arr(c.sections).forEach(function (s) {
-            f.push(secH(s.title));
-            f.push(group(arr(s.items).map(function (a) {
+            f.push(el('h2', 'list-h', rich(s.title)));
+            var ol = el('ol', 'plain-list');
+            arr(s.items).forEach(function (a) {
               n++;
-              return rowLink({ go: a.id, title: a.title, sub: a.subtitle, lead: '<span class="numdot" aria-hidden="true">' + n + '</span>' });
-            }), 'with-num'));
+              var li = el('li', '', '<a class="pressable" href="#" data-go="' + esc(a.id) + '"><span class="pl-n" aria-hidden="true">' + n + '</span><span class="pl-t">' + rich(a.title) + '</span>' + ic('chevron-right', { cls: 'chev', stroke: 2.4 }) + '</a>');
+              ol.appendChild(li);
+            });
+            f.push(ol);
           });
           return frag(f);
         }
@@ -1616,10 +1653,22 @@
     return w;
   }
   function drinkPage(d) {
+    var band = null;
+    if (d.band) {
+      var art = cupSVG(d);
+      if (!arr(d.layers).some(function (l) { return l.float; })) { var cut = Math.max(0, cupShape(d).top - 16); art = art.replace('viewBox="0 0 200 172"', 'viewBox="0 ' + cut + ' 200 ' + (172 - cut) + '"'); }
+      band = Object.assign({ art: art + legendHTML(d) }, d.band);
+    }
     return {
-      title: d.name, subtitle: d.aka,
+      title: d.name, subtitle: d.aka, band: band,
       build: function (ctx) {
         var f = [];
+        if (band) {
+          f.push(BLOCKS.leader({ items: [{ label: 'Espresso', value: d.espresso }, { label: 'Xícara', value: String(d.cup || '').replace(/^x[ií]cara de /i, '') }] }));
+          if (arr(d.steps).length) f.push(drinkSteps(d));
+          f.push(nextLinks(d.related));
+          return frag(f);
+        }
         var hero = el('div', 'drink-hero');
         hero.innerHTML = '<div class="drink-cup">' + cupSVG(d) + '</div>' + legendHTML(d) + (d.short ? '<p class="drink-short">' + rich(d.short) + '</p>' : '');
         f.push(hero);

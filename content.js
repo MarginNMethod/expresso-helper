@@ -37,7 +37,8 @@ C.comecar = {
       title: "Voltagem no Brasil",
       subtitle: "Sua Bambino é 120 V. Leia antes.",
       icon: "bolt",
-      blocks: [
+      home: { num: "127 ou 220 V?", line: "A Bambino americana é de 120 V. Numa tomada de 220 V ela queima.", go: "Veja antes de ligar" },
+        blocks: [
         { type: "callout", tone: "warning", title: "Nunca ligue direto em 220 V",
           text: "A Bambino americana é feita para 120 V. Numa tomada de 220 V, a resistência e a eletrônica queimam em segundos, e a garantia não cobre esse dano." },
         { type: "spec", items: [
@@ -541,16 +542,16 @@ C.bebidas = {
           ],
           tip: "Menor e mais intenso que o latte, com espuma de menos de 1 cm. O café aparece mais.",
           related: ["bebidas/latte", "preparar/leite"] },
-        { id: "cappuccino", name: "Cappuccino",
-          short: "Espresso, leite e espuma generosa",
-          ratio: "1:3 a 1:4 (café:leite)", espresso: "1 doppio (17 g → 34 g)", volume: "150–180 ml", cup: "xícara de 150–180 ml",
+        { id: "cappuccino", name: "Cappuccino", short: "Espresso, leite e espuma generosa", ratio: "1:3 a 1:4 (café:leite)", espresso: "1 doppio (17 g → 34 g)", volume: "150–180 ml", cup: "xícara de 150–180 ml",
+          band: { tone: "leite", num: "1:3 a 1:4", unit: "café pra leite", line: "Pede mais espuma que os outros, e é aí que mora o treino." },
           layers: [ { kind: "espresso", pct: 22 }, { kind: "milk", pct: 45 }, { kind: "foam", pct: 33 } ], fill: 95,
           steps: [
-            "Tire o doppio numa xícara aquecida.",
-            "Vaporize uns 120 ml de leite aerando mais: deve crescer uns 30–40%.",
-            "Despeje com firmeza no centro para a espuma subir. Espuma de 1–2 cm."
-          ],
-          tip: "A regra dos “três terços” é antiga. Na xícara real, o espresso ocupa uns 20–25% e a espuma cerca de um terço.",
+            "Aqueça a xícara com água quente, jogue fora e tire o doppio nela.",
+            "Ponha 120 ml de leite gelado numa jarra com folga. Solte um pouco de vapor fora do leite pra limpar o bico.",
+            "Deixe a ponta logo abaixo da superfície, chiando, até o leite crescer uns 30–40%.",
+            "Afunde um pouco o bico e gire o leite até 55–65 °C. Limpe o bico na hora.",
+            "Despeje firme no centro. A espuma sobe e deve ficar com 1–2 cm." ],
+          tip: "Pode esquecer a regra dos “três terços”. Na xícara de verdade o espresso ocupa uns 20–25% e a espuma, perto de um terço.",
           related: ["bebidas/latte", "preparar/leite"] },
         { id: "latte", name: "Latte", aka: "Caffè latte",
           short: "Muito leite, pouca espuma, suave",
@@ -866,52 +867,32 @@ var conceitos = [
     espresso: "Comece por torra média ou média-escura: combina com a temperatura fixa da Bambino e com o cesto pressurizado.\nPara bebidas com leite, a média-escura é a mais segura.",
     related: ["entender/temperatura", "entender/torra", "preparar/ratio"]
   },
-  {
-    id: "agua",
-    title: "Água",
-    subtitle: "Cerca de 90% do seu espresso",
-    icon: "drop",
-    blocks: [
-      { type: "p", text: "Um espresso é cerca de 90% água. Os minerais dela ajudam a extrair o café, e alguns mudam o gosto da xícara. Água ruim estraga café bom." },
-      { type: "h", text: "O que importa na água" },
-      { type: "spec", items: [
-        { label: "Dureza", value: "Cálcio e magnésio: ajudam a extrair, mas fazem calcário" },
-        { label: "Alcalinidade", value: "Bicarbonato: neutraliza ácidos e deixa o café chato" },
-        { label: "Cloro", value: "Tem que ser zero: gosto de piscina" },
-        { label: "pH", value: "Perto de 7, neutro" }
-      ] },
-      { type: "h", text: "Os números de referência" },
-      { type: "range", label: "Sólidos dissolvidos totais (TDS)", min: 0, max: 300, unit: "mg/L", low: 75, high: 250,
-        markers: [ { value: 150, label: "Alvo" } ] },
-      { type: "table", head: ["Medida", "Faixa boa", "Alvo"],
-        rows: [
-          ["TDS", "75–250 mg/L", "150 mg/L"],
-          ["Dureza cálcica", "17–85 mg/L CaCO₃", "68 mg/L"],
-          ["Alcalinidade", "Perto de 40 mg/L", "40 mg/L"],
-          ["Cloro", "0", "0"]
+  { id: "agua", title: "Água", subtitle: "Qual comprar e como ler o rótulo", icon: "drop",
+        band: { tone: "agua", num: "50–150", unit: "mg/L", line: "É a faixa de resíduo que você procura no rótulo da água mineral." },
+        blocks: [
+          { type: "p", lead: true, text: "Um espresso é cerca de 90% água, então vale gastar dois minutos aqui. Compre uma mineral leve ou filtre a da torneira. O básico é isso." },
+          { type: "art", name: "waterLabel", caption: "Rótulo de exemplo. Vire a garrafa e ache o resíduo de evaporação: ele mostra quanto mineral tem no total." },
+          { type: "leader", items: [
+            { label: "Resíduo a 180 °C", value: "50 a 150 mg/L" },
+            { label: "Bicarbonato", value: "até 100 mg/L" },
+            { label: "pH", value: "6,5 a 7,5" },
+            { label: "Cloro", value: "zero" } ] },
+          { type: "p", text: "Se for olhar uma segunda linha, olhe o bicarbonato. Passando de uns 100 mg/L ele engole a acidez e o café fica chocho." },
+          { type: "p", text: "Cálcio e magnésio são a dureza da água: um pouco ajuda a tirar sabor do pó, muito vira calcário dentro da máquina. Duas águas com o mesmo resíduo podem ter bastante cálcio ou bastante sódio, por isso a tabela inteira conta." },
+          { type: "h", text: "Mineral ou filtrada?" },
+          { type: "p", text: "Mineral de resíduo baixo é o caminho mais fácil. Muitas marcas ficam entre 20 e 150 mg/L, então confira o número antes de pegar a primeira da prateleira." },
+          { type: "p", text: "A da torneira também serve se passar por carvão ativado, num filtro de barro com vela de carvão ou num purificador. Isso tira o cloro, aquele gosto de piscina. Já a dureza muda de cidade pra cidade, e o carvão não resolve." },
+          { type: "rule", text: "Água destilada ou de osmose, nem pensar." },
+          { type: "p", text: "O fabricante desaconselha na máquina e o café sai sem graça. Abaixo de uns 30 mg/L de resíduo acontece coisa parecida: o espresso tende a ficar azedo e vazio. Se a sua mineral preferida for leve assim, misture com outra mais forte em minerais." },
+          { type: "more", title: "Os números da indústria, pra quem gosta", blocks: [
+            { type: "leader", items: [
+              { label: "TDS", value: "75–250 mg/L, alvo 150" },
+              { label: "Dureza", value: "17–85 mg/L, alvo 68" },
+              { label: "Alcalinidade", value: "perto de 40 mg/L" },
+              { label: "Cloro", value: "zero" } ] },
+            { type: "p", text: "TDS é o total de sólidos dissolvidos, e a dureza aqui é a de cálcio, medida em CaCO₃. Essa é a referência do café especial, e pra poupar a máquina vale ficar na metade mais macia." } ] }
         ],
-        caption: "Referência usada pela indústria de café especial. Para proteger a máquina, fique na metade mais macia." },
-      { type: "h", text: "Como ler o rótulo da água mineral" },
-      { type: "p", text: "No Brasil o rótulo traz a composição química. O número mais útil é o “resíduo de evaporação a 180 °C”, em mg/L." },
-      { type: "spec", items: [
-        { label: "Resíduo de evaporação", value: "Aproxima o TDS. Procure algo entre 50 e 150 mg/L" },
-        { label: "Bicarbonato", value: "Quanto menor, mais viva a acidez. Acima de uns 100 mg/L achata o café" },
-        { label: "Cálcio e magnésio", value: "Dizem a dureza. Pouco deixa o café sem graça; muito faz calcário" },
-        { label: "pH", value: "Entre 6,5 e 7,5" }
-      ] },
-      { type: "p", text: "O resíduo mostra quanto mineral há no total, não a dureza. Duas águas com o mesmo resíduo podem ter muito cálcio ou muito sódio. Por isso vale olhar a tabela inteira." },
-      { type: "h", text: "Opções práticas no Brasil" },
-      { type: "compare", items: [
-        { label: "Filtrada da torneira", text: "Filtro com carvão ativado, como o de barro com vela de carvão ou purificador, tira o cloro. A dureza depende da cidade." },
-        { label: "Mineral de baixo resíduo", text: "Muitas marcas brasileiras ficam entre 20 e 150 mg/L. Escolha uma na faixa de 50–150 mg/L." },
-        { label: "Destilada ou osmose", text: "Não use. Sem minerais, o café fica sem graça, e o fabricante desaconselha na máquina." }
-      ] },
-      { type: "callout", tone: "tip", title: "Água muito pura também é problema",
-        text: "Abaixo de uns 30 mg/L de resíduo, o espresso tende a sair azedo e vazio. Se sua mineral favorita é muito leve, misture com uma de resíduo maior." }
-    ],
-    espresso: "Água com pouco bicarbonato deixa a acidez aparecer; água muito alcalina deixa o espresso chato.\nMineral de resíduo entre 50 e 150 mg/L ou filtrada sem cloro já resolve, e ainda poupa a Bambino de calcário.",
-    related: ["comecar/limpeza", "entender/temperatura"]
-  },
+        related: ["comecar/limpeza", "entender/temperatura"] },
   {
     id: "temperatura",
     title: "Temperatura da água",
