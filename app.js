@@ -45,7 +45,6 @@
   function fmt(n, d) {
     return Number(n).toLocaleString('pt-BR', { minimumFractionDigits: d || 0, maximumFractionDigits: d || 0 });
   }
-  function firstSentence(t) { var m = String(t || '').match(/^.*?[.!?](?=\s|$)/); return m ? m[0] : String(t || ''); }
   function clamp(v, a, b) { return Math.min(b, Math.max(a, v)); }
   function ic(name, opts) { return window.icon ? window.icon(name, opts) : ''; }
   function el(tag, cls, html) {
@@ -100,25 +99,25 @@
     var p = C().preparar || {};
     return byId(entenderArticles(), id) || byId(comecarArticles(), id) || (p.leite && p.leite.id === id ? p.leite : null);
   }
-  /* Resolve a content link (e.g. "entender/agua", "bebidas/latte", "preparar/ratio") to {title, icon}. */
+  var DIAG_TITLE = 'Diagnóstico do espresso';
+  /* Resolve a content link (e.g. "entender/agua", "bebidas/latte", "preparar/ratio") to {title}. */
   function describeLink(target) {
     var parts = String(target).split('#')[0].split('/').filter(Boolean);
     var t = parts[0], id = parts[parts.length - 1];
     if (TABS.indexOf(t) < 0) { t = null; id = parts[0]; }
-    if (parts.length === 1 && t) return { title: tabTitle(t), icon: TAB_ICON[t] };
+    if (parts.length === 1 && t) return { title: tabTitle(t) };
     var p = C().preparar || {};
-    if (t === 'bebidas' || (!t && byId(allDrinks(), id))) { var d = byId(allDrinks(), id); if (d) return { title: d.name, drink: d }; }
+    if (t === 'bebidas' || (!t && byId(allDrinks(), id))) { var d = byId(allDrinks(), id); if (d) return { title: d.name }; }
     if (t === 'preparar' || !t) {
-      if (id === 'ratio') return { title: 'Calculadora de proporção', icon: 'scale' };
-      if (id === 'timer') return { title: 'Cronômetro do shot', icon: 'timer' };
-      if (id === 'diagnostico') return { title: 'Diagnóstico do espresso', icon: 'wrench' };
-      if (id === 'leite' && p.leite) return { title: p.leite.title, icon: p.leite.icon || 'milk' };
-      var dg = byId(arr(p.diagnostico), id); if (dg) return { title: dg.sintoma, icon: 'wrench' };
+      if (id === 'ratio') return { title: 'Calculadora de proporção' };
+      if (id === 'timer') return { title: 'Cronômetro do shot' };
+      if (id === 'diagnostico') return { title: DIAG_TITLE };
+      if (id === 'leite' && p.leite) return { title: p.leite.title };
+      var dg = byId(arr(p.diagnostico), id); if (dg) return { title: dg.sintoma };
     }
-    if (id === 'manual') { var m = (C().comecar || {}).manual || {}; return { title: m.title || 'Manual', icon: 'quiz' }; }
+    if (id === 'manual') { var m = (C().comecar || {}).manual || {}; return { title: m.title || 'Manual' }; }
     var a = findArticleAnywhere(id);
-    if (a) return { title: a.title, icon: a.icon, sub: a.subtitle };
-    return null;
+    return a ? { title: a.title } : null;
   }
 
   /* ================================================================ ROUTER */
@@ -393,22 +392,16 @@
     nav.innerHTML = '<div class="nav-bg"></div><div class="nav-bar"><div class="nav-left">' +
       (prev ? '<a class="nav-back" href="' + hashOf(prev.key) + '" data-back aria-label="Voltar para ' + esc(prev.def.title || '') + '">' +
         ic('chevron-left', { stroke: 2.6 }) + '<span>' + esc(fullBack) + '</span></a>' : '') +
-      '</div><div class="nav-title" aria-hidden="true"><span>' + esc((def.title || '').length > 24 && def.shortTitle ? def.shortTitle : (def.title || '')) + '</span></div><div class="nav-right"></div></div>';
+      '</div><div class="nav-title" aria-hidden="true"><span>' + esc(def.title || '') + '</span></div><div class="nav-right"></div></div>';
     if (def.large === false) nav.classList.add('inline');
     var scroller = el('div', 'scroller');
-    var content = el('div', 'content');
+    var content = el('div', 'content' + (def.cls ? ' ' + def.cls : ''));
     scroller.appendChild(content);
     var ctx = { tab: tab, key: key, page: pg, scroller: scroller, content: content };
     def.ctx = ctx;
     var band = def.band;
-    if (band) { nav.classList.add('on-band', 'tone-' + band.tone); pg.classList.add('bag'); }
-    if (band) content.appendChild(bandHead(def));
-    else if (def.large !== false) {
-      var head = el('div', 'page-head');
-      head.appendChild(el('h1', 'large-title', rich(def.title || '')));
-      if (def.subtitle) head.appendChild(el('p', 'page-sub', rich(def.subtitle)));
-      content.appendChild(head);
-    }
+    if (band) { nav.classList.add('on-band', 'tone-' + band.tone); content.appendChild(bandHead(def.title, band, 'h1')); }
+    else if (def.large !== false) content.appendChild(el('div', 'page-head', '<h1 class="large-title">' + rich(def.title || '') + '</h1>'));
     var body = def.build(ctx);
     if (body) content.appendChild(body);
     pg.appendChild(scroller);
@@ -425,6 +418,12 @@
        Once collapsed, it gets the space beside the centred title; if the previous title does not fit, "Voltar". */
     function fitNav() {
       if (!barEl.clientWidth) return;
+      // The full title, unless it would be cut off between the buttons and the page has a shorter name.
+      placeNav(def.title || '');
+      if (def.shortTitle && titleTxt.scrollWidth > titleTxt.clientWidth + 1) placeNav(def.shortTitle);
+    }
+    function placeNav(title) {
+      if (titleTxt.textContent !== title) titleTxt.textContent = title;
       var cs = getComputedStyle(barEl);
       var padL = parseFloat(cs.paddingLeft) || 0, padR = parseFloat(cs.paddingRight) || 0;
       var barW = barEl.clientWidth - padL - padR;
@@ -446,7 +445,7 @@
       titleEl.style.left = (padL + side) + 'px';
       titleEl.style.right = (padR + side) + 'px';
     }
-    function measure() { threshold = lt ? lt.offsetTop + lt.offsetHeight - 6 : 0; backW = null; fitNav(); onScroll(); }
+    function measure() { fitType(content); threshold = lt ? lt.offsetTop + lt.offsetHeight - 6 : 0; backW = null; fitNav(); onScroll(); }
     var ticking = false;
     function onScroll() {
       if (ticking) return; ticking = true;
@@ -458,23 +457,34 @@
       });
     }
     scroller.addEventListener('scroll', onScroll, { passive: true });
-    window.addEventListener('resize', measure);
     return { key: key, el: pg, def: def, scroller: scroller, measure: measure, nav: nav };
   }
 
   /* A flat colour block that opens a screen, like the front of a coffee bag: title, one drawing or number, one line. */
-  function bandHead(def) {
-    var b = def.band;
+  function bandHead(title, b, tag) {
     var h = el('div', 'band tone-' + b.tone);
-    h.innerHTML = '<h1 class="large-title band-title">' + rich(def.title || '') + '</h1>' +
+    var long = String(title || '').length > 22;
+    h.innerHTML = '<' + tag + ' class="large-title band-title' + (long ? ' long' : '') + '">' + rich(title || '') + '</' + tag + '>' +
+      (b.sub ? '<p class="band-sub">' + rich(b.sub) + '</p>' : '') +
       (b.art ? '<div class="band-art">' + b.art + '</div>' : '') +
       (b.num ? '<p class="band-num"><span>' + rich(b.num) + '</span>' + (b.unit ? '<small>' + rich(b.unit) + '</small>' : '') + '</p>' : '') +
       (b.line ? '<p class="band-line">' + rich(b.line) + '</p>' : '');
     return h;
   }
+  /* Display type never breaks inside a word and never runs off the screen: shrink the few lines that would. */
+  var FIT = '.large-title, .block-title, .block-num, .band-num > span, .result-big, .claim-myth, .rule, .list-h, .h';
+  function fitType(root) {
+    root.querySelectorAll(FIT).forEach(function (e) {
+      e.style.fontSize = '';
+      var inline = e.parentNode.className === 'band-num';
+      var room = inline ? e.parentNode.clientWidth : e.clientWidth;
+      var need = inline ? e.offsetWidth : e.scrollWidth;
+      if (room && need > room + 0.5) e.style.fontSize = (Math.floor(parseFloat(getComputedStyle(e).fontSize) * room / need * 10) / 10) + 'px';
+    });
+  }
 
   /* ---------------------------------------------------- global interaction */
-  var PRESS_SEL = '.pressable, .btn, .tile, .feature, .chip, .nav-back, .tab, .round-btn, .stepper button, .gl-letter-btn, .link-accent, .step-btn, .preset-card, .pill, .rb, .search-clear, .steps-reset';
+  var PRESS_SEL = '.pressable, .btn, .chip, .nav-back, .tab, .stepper button, .seg button, .link-accent, .step-btn, .preset, .pill, .rb, .search-clear, .steps-reset, .roast-tab, summary';
   function setupPress() {
     var cur = null, sx = 0, sy = 0, timer = 0;
     function clear() { clearTimeout(timer); if (cur) cur.classList.remove('pressed'); cur = null; }
@@ -597,6 +607,7 @@
     var api = { close: close, body: body };
     build(body, close);
     document.body.appendChild(bd); document.body.appendChild(sh);
+    fitType(body);
     app.setAttribute('inert', '');
     animate(bd, [{ opacity: 0 }, { opacity: 1 }], { duration: reduce ? 1 : 300, easing: 'linear' });
     animate(sh, [{ transform: 'translateY(100%)' }, { transform: 'translateY(0)' }], { duration: reduce ? 1 : 420 });
@@ -633,48 +644,58 @@
   function closeAllSheets() { openSheets.slice().forEach(function (s) { s.close('nav'); }); }
 
   /* ============================================================ COMPONENTS */
-  var SQ_TINT = { flame: 'terracotta', bean: 'brown', drop: 'slate', thermometer: 'gold', leaf: 'olive', sprout: 'olive',
-    globe: 'slate', map: 'slate', clock: 'brown', scale: 'brown', cup: 'brown', milk: 'slate', nose: 'green', book: 'brown',
-    quiz: 'gold', warning: 'gold', wrench: 'slate', bolt: 'gold', list: 'slate', timer: 'green', steam: 'slate', compass: 'terracotta' };
-
-  function rowLink(o) {
-    // o: {go, title, sub, lead (html), value, cls, strong}
-    var r = el(o.go ? 'a' : 'div', 'row' + (o.go ? ' pressable' : '') + (o.cls ? ' ' + o.cls : ''));
+  function chev() { return ic('chevron-right', { cls: 'chev', stroke: 2.4 }); }
+  function listH(text) { return el('h2', 'list-h', rich(text)); }
+  /* Navigation list: hairline rows with a condensed title.
+     o: {go, title, sub, subHtml, value, lead (html)}; without `go` the row is plain text. */
+  function indexRow(o) {
+    var li = el('li');
+    var r = el(o.go ? 'a' : 'div', 'ix' + (o.go ? ' pressable' : ''));
     if (o.go) { r.setAttribute('href', '#'); r.dataset.go = o.go; }
+    var sub = o.subHtml || (o.sub ? rich(o.sub) : '');
     r.innerHTML = (o.lead || '') +
-      '<div class="row-main"><div class="row-title' + (o.strong ? ' strong' : '') + '">' + rich(o.title) + '</div>' +
-      (o.sub ? '<div class="row-sub' + (o.subBody ? ' body' : '') + '">' + rich(o.sub) + '</div>' : '') +
-      (o.meta ? '<div class="row-meta">' + o.meta + '</div>' : '') + '</div>' +
-      (o.value ? '<div class="row-value">' + rich(o.value) + '</div>' : '') +
-      (o.go ? ic('chevron-right', { cls: 'chev', stroke: 2.4 }) : '');
-    return r;
+      '<span class="ix-main"><span class="ix-title">' + rich(o.title) + '</span>' +
+      (sub ? '<span class="ix-sub">' + sub + '</span>' : '') + '</span>' +
+      (o.value ? '<span class="ix-val">' + rich(o.value) + '</span>' : '') +
+      (o.go ? chev() : '');
+    li.appendChild(r);
+    return li;
   }
-  function sq(name, tint) {
-    if (!window.icon || !window.icon.has(name)) return '';
-    return '<span class="sq t-' + (tint || SQ_TINT[name] || 'brown') + '">' + ic(name, { stroke: 2 }) + '</span>';
+  function indexList(rows, cls) {
+    var u = el('ul', 'index' + (cls ? ' ' + cls : ''));
+    rows.forEach(function (r) { if (r) u.appendChild(r); });
+    return u;
   }
-  function group(rows, cls) {
-    var g = el('div', 'group' + (cls ? ' ' + cls : ''));
-    rows.forEach(function (r) { if (r) g.appendChild(r); });
-    return g;
+  /* Label ...... value. A long value drops under its label. */
+  function leader(items) {
+    var d = el('dl', 'blk leader');
+    d.innerHTML = arr(items).map(function (it) {
+      var long = String(it.value || '').replace(/<[^>]+>/g, '').length > 26;
+      return '<div class="ld' + (long ? ' long' : '') + '"><dt>' + rich(it.label) + '</dt><span class="dots" aria-hidden="true"></span><dd>' + rich(it.value) + '</dd></div>';
+    }).join('');
+    return d;
   }
-  function secH(text, small) { return el('h2', 'sec-h' + (small ? ' small' : ''), rich(text)); }
-  function norm(s) { return String(s == null ? '' : s).normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase(); }
+  function norm(s) { return String(s == null ? '' : s).normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase(); }
+  /* Every readable string in a block tree, for the Entender search. */
+  var NOT_TEXT = /^(type|tone|icon|id|color|link|target)$/;
   function flatText(o) {
     var out = [];
     (function walk(v, k) {
-      if (typeof v === 'string') { if (k !== 'type' && k !== 'tone' && k !== 'icon' && k !== 'id') out.push(v.replace(/<[^>]+>/g, '')); }
+      if (typeof v === 'string') { if (!NOT_TEXT.test(k)) out.push(v.replace(/<[^>]+>/g, '')); }
       else if (Array.isArray(v)) v.forEach(function (x) { walk(x, k); });
-      else if (v && typeof v === 'object') Object.keys(v).forEach(function (kk) { walk(v[kk], kk); });
+      else if (v && typeof v === 'object') {
+        if (v.type === 'art') { walk(v.caption, 'caption'); return; }  // `name` is the drawing's id
+        Object.keys(v).forEach(function (kk) { walk(v[kk], kk); });
+      }
     })(o, '');
     return out.join(' ');
   }
   /* iOS-style search field (client-side filtering). onChange(value) on every input. */
   function searchField(label, onChange) {
     var w = el('div', 'searchbar');
-    w.innerHTML = ic('search', { size: 18, cls: 'search-ic' }) +
+    w.innerHTML = ic('search', { size: 20, cls: 'search-ic' }) +
       '<input type="search" class="search-in" placeholder="' + esc(label) + '" aria-label="' + esc(label) + '" enterkeyhint="search" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false">' +
-      '<button type="button" class="search-clear" aria-label="Limpar busca" hidden>' + ic('xmark', { size: 14, stroke: 2.6 }) + '</button>';
+      '<button type="button" class="search-clear" aria-label="Limpar busca" hidden>' + ic('xmark', { size: 15, stroke: 2.6 }) + '</button>';
     var input = w.querySelector('input'), clear = w.querySelector('.search-clear');
     function fire() { clear.hidden = !input.value; onChange(input.value); }
     input.addEventListener('input', fire);
@@ -683,13 +704,13 @@
     w.clear = function () { input.value = ''; clear.hidden = true; onChange(''); };
     return w;
   }
-  function emptyState(title, text, onClear) {
-    var d = el('div', 'empty search-empty');
+  function emptyState(title, text, action, onAction) {
+    var d = el('div', 'empty');
     d.setAttribute('role', 'status');
-    d.innerHTML = ic('search') + '<div class="empty-title">' + esc(title) + '</div><p>' + esc(text) + '</p>';
-    if (onClear) {
-      var b = el('button', 'btn tinted', 'Limpar busca'); b.type = 'button'; b.style.marginTop = '16px'; b.style.maxWidth = '240px';
-      b.addEventListener('click', onClear); d.appendChild(b);
+    d.innerHTML = '<h2 class="empty-title">' + esc(title) + '</h2><p>' + esc(text) + '</p>';
+    if (onAction) {
+      var b = el('button', 'btn outline', esc(action)); b.type = 'button';
+      b.addEventListener('click', onAction); d.appendChild(b);
     }
     return d;
   }
@@ -699,8 +720,9 @@
     s.setAttribute('role', 'radiogroup');
     if (label) s.setAttribute('aria-label', label);
     var thumb = el('div', 'seg-thumb');
+    thumb.style.width = (100 / options.length) + '%';
     s.appendChild(thumb);
-    var btns = options.map(function (o, i) {
+    var btns = options.map(function (o) {
       var b = el('button', '', esc(o.label));
       b.type = 'button'; b.setAttribute('role', 'radio');
       b.addEventListener('click', function () { set(o.value, true); });
@@ -711,7 +733,6 @@
       var idx = -1;
       options.forEach(function (o, i) { var on = o.value === v; if (on) idx = i; btns[i].setAttribute('aria-checked', on ? 'true' : 'false'); });
       thumb.style.opacity = idx < 0 ? '0' : '1';
-      thumb.style.width = 'calc((100% - 4px) / ' + options.length + ')';
       thumb.style.transform = 'translateX(' + (Math.max(idx, 0) * 100) + '%)';
       if (fire && onChange) onChange(v);
     }
@@ -827,7 +848,7 @@
       if (i > 0 && !mini) lines += '<line x1="0" x2="200" y1="' + y.toFixed(1) + '" y2="' + y.toFixed(1) + '" stroke="var(--layer-line)" stroke-width="1"/>';
       y = y0;
     });
-    var sw = mini ? 9 : 3;
+    var sw = mini ? 7 : 3;
     var stroke = 'var(--cup-stroke)';
     var vb = mini ? '20 6 172 172' : '0 0 200 172';
     // Floating layers: a scoop of ice cream rising above the rim, ice cubes bobbing at the surface.
@@ -865,179 +886,93 @@
       return '<span><i style="background:' + L.c + '"></i>' + esc(L.n) + '</span>';
     }).join('') + '</div>';
   }
-  function statsHTML(d) {
-    var cup = String(d.cup || '');
-    var items = [['Proporção', d.ratio], ['Espresso', d.espresso], ['Volume', d.volume], ['Recipiente', cup.charAt(0).toUpperCase() + cup.slice(1)]];
-    return '<div class="stats"><div class="stats-grid">' + items.map(function (x) {
-      return '<div class="stat"><div class="stat-k">' + x[0] + '</div><div class="stat-v">' + rich(x[1] || '—') + '</div></div>';
-    }).join('') + '</div></div>';
-  }
-
   /* ========================================================== BLOCK RENDERERS */
+  /* Neighbouring blocks of the same family share one wrapper, so their hairlines and spacing join up. */
+  function familyOf(b) {
+    if (b.type === 'p' || b.type === 'h' || b.type === 'list') return 'prose';
+    if (b.type === 'origin') return 'blk origins';
+    if (b.type === 'claim' && !b.big) return 'blk claims';
+    return '';
+  }
   function renderBlocks(blocks, ctx) {
     var out = document.createDocumentFragment();
-    var prose = null;
+    var wrap = null, family = '';
     arr(blocks).forEach(function (b) {
       if (!b || !b.type) return;
       var fn = BLOCKS[b.type];
-      if (!fn) return;
-      var isProse = PROSE_TYPES.indexOf(b.type) >= 0;
-      var node = fn(b, ctx);
+      var node = fn && fn(b, ctx);
       if (!node) return;
-      if (isProse) {
-        if (!prose) { prose = el('div', 'prose blk'); out.appendChild(prose); }
-        prose.appendChild(node);
-      } else {
-        prose = null;
-        out.appendChild(node);
-      }
+      var fam = familyOf(b);
+      if (!fam) { wrap = null; out.appendChild(node); return; }
+      if (!wrap || fam !== family) { wrap = el('div', fam); family = fam; out.appendChild(wrap); }
+      wrap.appendChild(node);
     });
     return out;
   }
-  var PROSE_TYPES = ['p', 'h', 'list'];
+  function anchored(node, id) { node.id = 'a-' + id; node.dataset.anchor = id; return node; }
   var BLOCKS = {
     p: function (b) { return el('p', b.lead ? 'p lead' : 'p', rich(b.text)); },
-    art: function (b) { var draw = window.ART && window.ART[b.name]; return draw ? figure(draw(), b.caption, 'art') : null; },
-    leader: function (b) {
-      var d = el('dl', 'blk leader');
-      d.innerHTML = arr(b.items).map(function (it) { return '<div class="ld"><dt>' + rich(it.label) + '</dt><span class="dots" aria-hidden="true"></span><dd>' + rich(it.value) + '</dd></div>'; }).join('');
-      return d;
-    },
-    rule: function (b) { return el('p', 'blk rule', rich(b.text)); },
-    more: function (b, ctx) {
-      var d = el('details', 'blk more');
-      d.appendChild(el('summary', '', '<span>' + rich(b.title) + '</span>' + ic('chevron-right', { cls: 'chev', stroke: 2.4 })));
-      d.appendChild(renderBlocks(b.blocks, ctx));
-      return d;
-    },
-    h: function (b) { var e = el('h2', 'h', rich(b.text)); if (b.id) { e.id = 'a-' + b.id; e.dataset.anchor = b.id; } return e; },
+    h: function (b) { var e = el('h2', 'h', rich(b.text)); return b.id ? anchored(e, b.id) : e; },
     list: function (b) {
       var l = el(b.ordered ? 'ol' : 'ul', 'list');
       arr(b.items).forEach(function (t) { l.appendChild(el('li', '', rich(typeof t === 'string' ? t : (t.text || '')))); });
       return l;
     },
+    art: function (b) { var draw = window.ART && window.ART[b.name]; return draw ? figure(draw(), b.caption, 'art') : null; },
+    leader: function (b) { return leader(b.items); },
+    rule: function (b) { return el('p', 'blk rule', rich(b.text)); },
+    more: function (b, ctx) {
+      var d = el('details', 'blk more');
+      d.appendChild(el('summary', '', '<span>' + rich(b.title) + '</span>' + chev()));
+      d.appendChild(renderBlocks(b.blocks, ctx));
+      return d;
+    },
     steps: function (b) {
-      var l = el('ol', 'steps');
+      var l = el('ol', 'blk steps');
       arr(b.items).forEach(function (s, i) {
         if (typeof s === 'string') s = { text: s };
-        var li = el('li', 'step');
-        li.innerHTML = '<span class="step-n" aria-hidden="true">' + (i + 1) + '</span><div class="row-main">' +
-          (s.title ? '<div class="step-title">' + rich(s.title) + '</div>' : '') +
-          (s.text ? '<div class="step-text">' + rich(s.text) + '</div>' : '') + '</div>';
-        l.appendChild(li);
+        l.appendChild(el('li', 'step', '<span class="step-n" aria-hidden="true">' + (i + 1) + '</span><div class="step-body">' +
+          (s.title ? '<span class="step-title">' + rich(s.title) + '</span>' : '') +
+          (s.text ? '<span class="step-text">' + rich(s.text) + '</span>' : '') + '</div>'));
       });
       return l;
     },
     table: function (b) {
-      var w = el('div', 'blk tbl');
       var head = arr(b.head), rows = arr(b.rows);
       var cols = Math.max(head.length, rows.reduce(function (m, r) { return Math.max(m, arr(r).length); }, 0));
-      if (cols <= 2) {
-        if (rows.some(function (r) { return String(r[1] || '').length > 26; })) w.classList.add('kvgrid');
-        if (head.length) w.appendChild(el('div', 'tbl-head', '<span>' + rich(head[0] || '') + '</span><span>' + rich(head[1] || '') + '</span>'));
-        w.appendChild(group(rows.map(function (r) {
-          var row = el('div', 'row');
-          row.innerHTML = '<div class="row-main"><div class="row-title">' + rich(r[0]) + '</div></div><div class="row-value wrap">' + rich(r[1] == null ? '' : r[1]) + '</div>';
-          return row;
-        })));
-      } else if (cols === 3 && head.concat.apply(head, rows).every(function (c) { return String(c == null ? '' : c).replace(/<[^>]+>/g, '').length <= 22; })) {
-        // Short cells: a real 3-column grid (no column label repeated on every row).
-        w.classList.add('tgrid');
-        var tt = el('div', 'tg-table');
-        tt.appendChild(el('div', 'tg-head', [0, 1, 2].map(function (i) { return '<span>' + rich(head[i] || '') + '</span>'; }).join('')));
-        var g3 = el('div', 'group');
-        rows.forEach(function (r) {
-          // .tg-k (column label) is only shown when the card is too narrow for three columns (large text).
-          g3.appendChild(el('div', 'tg-row', [0, 1, 2].map(function (i) { var cell = rich(r[i] == null ? '—' : r[i]); if (i === 0 && !/\s/.test(String(r[0])) && String(r[0]).length <= 16) cell = '<span class="nowrap">' + cell + '</span>'; return '<div>' + (i && head[i] ? '<span class="tg-k">' + rich(head[i]) + '</span>' : '') + cell + '</div>'; }).join('')));
-        });
-        tt.appendChild(g3);
-        w.appendChild(tt);
-      } else {
-        w.classList.add('tbl3');
-        if (head[0]) w.appendChild(el('div', 'tbl-head', '<span>' + rich(head[0]) + '</span>'));
-        w.appendChild(group(rows.map(function (r) {
-          var row = el('div', 'row');
-          var kv = '';
-          for (var i = 1; i < cols; i++) kv += '<div><div class="k">' + rich(head[i] || '') + '</div><div class="v">' + rich(r[i] == null ? '—' : r[i]) + '</div></div>';
-          row.innerHTML = '<div class="row-title strong">' + rich(r[0]) + '</div><div class="tbl3-kv"' + (cols > 3 ? ' style="grid-template-columns:repeat(' + (cols - 1) + ',1fr)"' : '') + '>' + kv + '</div>';
-          return row;
-        })));
-      }
-      if (b.caption) w.appendChild(el('p', 'caption', rich(b.caption)));
-      return w;
-    },
-    spec: function (b) {
-      var w = el('div', 'blk spec');
-      if (b.title) w.appendChild(el('h3', 'sec-h small', rich(b.title)));
-      var items = arr(b.items).length ? b.items : arr(b.rows);
-      if (items.some(function (it) { return String(it.value != null ? it.value : it.v).length > 22; })) w.classList.add('kvgrid');
-      w.appendChild(group(items.map(function (it) {
-        var r = el('div', 'row');
-        r.innerHTML = '<div class="row-title">' + rich(it.label != null ? it.label : it.k) + '</div><div class="row-value">' + rich(it.value != null ? it.value : it.v) + '</div>';
-        return r;
-      })));
-      if (b.caption || b.note) w.appendChild(el('p', 'caption', rich(b.caption || b.note)));
-      return w;
-    },
-    callout: function (b) {
-      var tone = ({ info: 'info', warning: 'warning', tip: 'tip' })[b.tone] || 'info';
-      var icn = tone === 'warning' ? 'warning' : tone === 'tip' ? 'lightbulb' : 'info';
-      var c = el('aside', 'callout ' + tone + (b.title ? '' : ' notitle'));
-      var tile = '<span class="ctile" aria-hidden="true">' + ic(icn, { stroke: 2 }) + '</span>';
-      c.innerHTML = b.title
-        ? '<div class="callout-head">' + tile + '<span>' + rich(b.title) + '</span></div><p class="callout-text">' + rich(b.text) + '</p>'
-        : tile + '<p class="callout-text">' + rich(b.text) + '</p>';
-      return c;
-    },
-    compare: function (b) {
-      var items = arr(b.items);
-      var short = items.length === 2 && items.every(function (i) { return String(i.text || '').length < 90 && String(i.label || '').length < 18; });
-      var w = el('div', 'compare' + (short ? ' two' : ''));
-      items.forEach(function (i) {
-        w.appendChild(el('div', 'cmp', '<div class="cmp-label">' + rich(i.label) + '</div><div class="cmp-text">' + rich(i.text) + '</div>'));
-      });
-      return w;
-    },
-    scale: function (b) {
-      var v = clamp(+b.value || 0, 0, 100);
-      var m = el('div', 'meter');
-      m.setAttribute('role', 'img');
-      m.setAttribute('aria-label', (b.label || '') + ': ' + v + ' de 100, entre ' + (b.left || '') + ' e ' + (b.right || ''));
-      m.innerHTML = '<div class="meter-top"><div class="meter-label">' + rich(b.label) + '</div></div>' +
-        '<div class="track"><div class="track-fill" style="width:' + v + '%"></div><div class="track-knob" style="left:' + v + '%"></div></div>' +
-        '<div class="meter-ends"><span>' + rich(b.left) + '</span><span>' + rich(b.right) + '</span></div>' +
-        (b.note ? '<p class="meter-note">' + rich(b.note) + '</p>' : '');
-      return m;
+      var hasHead = head.some(function (c) { return String(c || '').trim(); });
+      var idx = []; for (var i = 0; i < cols; i++) idx.push(i);
+      function plain(s) { return esc(String(s || '').replace(/<[^>]+>/g, '')); }
+      var html = '<table>';
+      if (hasHead) html += '<thead><tr>' + idx.map(function (i) { return head[i] ? '<th scope="col">' + rich(head[i]) + '</th>' : '<td></td>'; }).join('') + '</tr></thead>';
+      html += '<tbody>' + rows.map(function (r) {
+        return '<tr>' + idx.map(function (i) {
+          var cell = rich(r[i] == null ? '' : r[i]);
+          return i ? '<td data-label="' + plain(head[i]) + '">' + cell + '</td>' : '<th scope="row">' + cell + '</th>';
+        }).join('') + '</tr>';
+      }).join('') + '</tbody></table>';
+      if (b.caption) html += '<p class="caption">' + rich(b.caption) + '</p>';
+      return el('div', 'blk tbl cols' + cols + (hasHead ? '' : ' no-head'), html);
     },
     range: function (b) {
-      var min = +b.min, max = +b.max;
-      var low = b.low, high = b.high;
-      if ((low == null || high == null) && arr(b.bands).length) { low = b.bands[0].from; high = b.bands[0].to; }
+      var min = +b.min, max = +b.max, low = b.low, high = b.high;
       var unit = b.unit ? (/^%/.test(b.unit) ? b.unit : '\u00a0' + b.unit) : '';
       function pct(v) { return clamp((v - min) / ((max - min) || 1) * 100, 0, 100); }
-      var m = el('div', 'meter');
-      var bandTxt = low != null ? fmt(low, low % 1 ? 1 : 0) + '–' + fmt(high, high % 1 ? 1 : 0) + unit : '';
-      m.setAttribute('role', 'img');
-      m.setAttribute('aria-label', (b.label || '') + (bandTxt ? ': faixa ideal ' + bandTxt : '') + ', escala de ' + min + ' a ' + max + unit);
+      function num(v) { return fmt(+v, (+v) % 1 ? 1 : 0); }
+      var bandTxt = low != null ? num(low) + '–' + num(high) + unit : '';
       var markers = arr(b.markers);
-      var html = '<div class="meter-top"><div class="meter-label">' + rich(b.label) + '</div>' + (bandTxt ? '<div class="range-band-label">' + esc(bandTxt) + '</div>' : '') + '</div>' +
-        '<div class="track">' + (low != null ? '<div class="range-band" style="left:' + pct(low) + '%;width:' + (pct(high) - pct(low)) + '%"></div>' : '') +
+      return el('div', 'blk meter',
+        '<div class="meter-top"><p class="meter-label">' + rich(b.label) + '</p>' + (bandTxt ? '<p class="range-band-label"><span class="sr-only">Faixa ideal: </span>' + esc(bandTxt) + '</p>' : '') + '</div>' +
+        '<div class="track" aria-hidden="true">' + (low != null ? '<div class="range-band" style="left:' + pct(low) + '%;width:' + (pct(high) - pct(low)) + '%"></div>' : '') +
         markers.map(function (mk) { return '<div class="range-pin" style="left:' + pct(+mk.value) + '%"></div>'; }).join('') + '</div>' +
-        '<div class="range-axis" aria-hidden="true"><span class="range-tick edge-l" style="left:0">' + fmt(min) + unit + '</span><span class="range-tick edge-r" style="left:100%">' + fmt(max) + unit + '</span></div>';
-      if (markers.length) {
-        html += '<ul class="range-markers">' + markers.map(function (mk) {
-          return '<li><b>' + fmt(+mk.value, (+mk.value) % 1 ? 1 : 0) + unit + '</b><span>' + rich(mk.label) + '</span></li>';
-        }).join('') + '</ul>';
-      }
-      if (b.note) html += '<p class="meter-note">' + rich(b.note) + '</p>';
-      m.innerHTML = html;
-      return m;
+        '<div class="range-axis" aria-hidden="true"><span>' + num(min) + unit + '</span><span>' + num(max) + unit + '</span></div>' +
+        (markers.length ? '<ul class="range-markers">' + markers.map(function (mk) { return '<li><b>' + num(mk.value) + unit + '</b><span>' + rich(mk.label) + '</span></li>'; }).join('') + '</ul>' : '') +
+        (b.note ? '<p class="caption">' + rich(b.note) + '</p>' : ''));
     },
     timeline: function (b) {
-      var items = arr(b.items).length ? b.items : arr(b.points).map(function (p) { return { label: p.day, text: p.label }; });
-      var l = el('ol', 'timeline');
-      items.forEach(function (it) {
-        l.appendChild(el('li', 'tl-item', '<div class="tl-label">' + rich(it.label) + '</div>' + (it.text ? '<div class="tl-text">' + rich(it.text) + '</div>' : '')));
+      var l = el('ol', 'blk timeline');
+      arr(b.items).forEach(function (it) {
+        l.appendChild(el('li', 'tl-item', '<p class="tl-label">' + rich(it.label) + '</p>' + (it.text ? '<p class="tl-text">' + rich(it.text) + '</p>' : '')));
       });
       return l;
     },
@@ -1045,45 +980,90 @@
       var levels = arr(b.levels).length ? b.levels : [
         { label: 'Verde', color: '#A9A57C' }, { label: 'Clara', color: '#A8713F' }, { label: 'Média', color: '#7A4A27' },
         { label: 'Média-<wbr>escura', color: '#52301A' }, { label: 'Escura', color: '#2C1A10' }];
-      var f = el('figure', 'figure');
+      var n = levels.length;
+      var f = el('figure', 'blk figure');
       f.setAttribute('role', 'img');
       f.setAttribute('aria-label', 'Barra de cores da torra: ' + levels.map(function (l) { return String(l.label).replace(/<[^>]+>/g, ''); }).join(', ') + '. Primeiro crack entre verde e clara, segundo crack entre média-escura e escura.');
-      var n = levels.length;
       f.innerHTML = '<div class="roast-cracks" aria-hidden="true"><span class="roast-crack" style="left:' + (100 / n) + '%">1º crack</span><span class="roast-crack" style="left:' + (100 * (n - 1) / n) + '%">2º crack</span></div>' +
-        '<div class="roast-swatches" aria-hidden="true">' + levels.map(function (l) { return '<span style="background:' + l.color + '"></span>'; }).join('') + '</div>' +
+        '<div class="roast-swatches" aria-hidden="true">' + levels.map(function (l) { return '<span style="background:' + esc(l.color) + '"></span>'; }).join('') + '</div>' +
         '<div class="roast-labels" aria-hidden="true">' + levels.map(function (l) { return '<span>' + l.label + '</span>'; }).join('') + '</div>' +
         '<div class="roast-ends" aria-hidden="true"><span>' + rich(b.left || 'Mais acidez e notas de fruta') + '</span><span>' + rich(b.right || 'Mais corpo e amargor') + '</span></div>' +
         (b.caption ? '<figcaption class="fig-cap">' + rich(b.caption) + '</figcaption>' : '');
       return f;
     },
-    cherry: function (b) { return figure(cherrySVG(), b.caption, 'cherry'); },
-    compass: function (b) { var f = figure(compassSVG(b), b.caption); f.classList.add('compass'); return f; },
-    worldmap: function (b, ctx) { return worldMap(b, ctx); },
-    region: function (b) {
-      var c = el('article', 'region kvgrid');
-      c.dataset.region = b.id || slug(b.name);
-      if (b.id) { c.id = 'a-' + b.id; c.dataset.anchor = b.id; }
-      c.dataset.regionName = slug(b.name);
-      var notes = arr(b.notes);
-      c.innerHTML = '<div class="region-head"><h2 class="region-name">' + rich(b.name) + '</h2>' + (b.country && slug(b.country) !== slug(b.name) ? '<div class="region-country">' + rich(b.country) + '</div>' : '') + '</div>' +
-        (b.altitude ? '<div class="row"><div class="row-title">Altitude</div><div class="row-value num">' + rich(b.altitude) + '</div></div>' : '') +
-        (b.process ? '<div class="row"><div class="row-title">Processo</div><div class="row-value">' + rich(b.process) + '</div></div>' : '') +
-        (notes.length ? '<div class="region-notes"><div class="k">Notas</div><div class="notes">' + notes.map(function (n) { return '<span class="note-tag">' + rich(n) + '</span>'; }).join('') + '</div></div>' : '') +
-        (b.espresso ? '<div class="region-esp"><div class="k">No espresso</div><p>' + rich(b.espresso) + '</p></div>' : '');
-      return c;
+    /* A tappable colour bar: one roast level on screen at a time. */
+    roast: function (b) {
+      var levels = arr(b.levels);
+      if (!levels.length) return null;
+      var w = el('div', 'blk roast');
+      var tabs = el('div', 'roast-tabs');
+      tabs.setAttribute('role', 'tablist'); tabs.setAttribute('aria-label', 'Nível de torra');
+      var panel = el('div', 'roast-panel');
+      panel.id = 'roast' + (++uid); panel.setAttribute('role', 'tabpanel');
+      var current = 0;
+      levels.forEach(function (l, i) { if (l.id === 'media') current = i; });
+      var btns = levels.map(function (l, i) {
+        var t = el('button', 'roast-tab', '<span class="roast-sw" aria-hidden="true"><span class="roast-chip" style="background:' + esc(l.color) + '"></span></span><span class="roast-name">' + rich(l.name) + '</span>');
+        t.type = 'button'; t.id = panel.id + '-' + i;
+        t.setAttribute('role', 'tab'); t.setAttribute('aria-controls', panel.id);
+        t.addEventListener('click', function () { show(i); });
+        tabs.appendChild(t);
+        return t;
+      });
+      function show(i) {
+        var l = levels[i]; current = i;
+        btns.forEach(function (t, k) { t.setAttribute('aria-selected', k === i ? 'true' : 'false'); t.tabIndex = k === i ? 0 : -1; });
+        panel.setAttribute('aria-labelledby', btns[i].id);
+        panel.innerHTML = '<h3 class="roast-title">' + rich(l.name) + '</h3>' + (l.summary ? '<p class="p">' + rich(l.summary) + '</p>' : '');
+        if (arr(l.items).length) panel.appendChild(leader(l.items));
+        panel.querySelectorAll('.blk').forEach(function (x) { x.classList.remove('blk'); });
+      }
+      tabs.addEventListener('keydown', function (e) {
+        var d = e.key === 'ArrowRight' ? 1 : e.key === 'ArrowLeft' ? -1 : 0;
+        if (!d) return;
+        e.preventDefault();
+        show((current + d + levels.length) % levels.length);
+        btns[current].focus();
+      });
+      show(current);
+      w.appendChild(tabs); w.appendChild(panel);
+      return w;
     },
-    glossary: function (b, ctx) { return glossary(b, ctx); },
-    myth: function (b) {
-      var c = el('div', 'myth');
-      c.innerHTML = '<div class="myth-part myth-m">' + ic('xmark', { stroke: 2 }) + '<div><div class="myth-k">Mito</div><p class="myth-t">' + rich(b.myth) + '</p></div></div>' +
-        '<div class="myth-part myth-v">' + ic('check', { stroke: 2.2 }) + '<div><div class="myth-k">Verdade</div><p class="myth-t">' + rich(b.truth) + '</p></div></div>';
-      return c;
-    }
+    /* One coffee origin: a compact row that opens to its data. */
+    origin: function (b) {
+      var d = anchored(el('details', 'origin'), b.id || slug(b.name));
+      d.dataset.name = slug(b.name);
+      var notes = arr(b.notes).join(' · ');
+      d.appendChild(el('summary', '', '<span class="or-main"><span class="or-name">' + rich(b.name) + '</span>' + (notes ? '<span class="or-notes">' + rich(notes) + '</span>' : '') + '</span>' + chev()));
+      var body = el('div', 'origin-body');
+      var facts = [];
+      if (b.country && slug(b.country) !== slug(b.name)) facts.push({ label: 'País', value: b.country });
+      if (b.altitude) facts.push({ label: 'Altitude', value: b.altitude });
+      if (b.process) facts.push({ label: 'Processo', value: b.process });
+      var dl = leader(facts); dl.classList.remove('blk');
+      body.appendChild(dl);
+      if (b.espresso) body.appendChild(el('p', 'origin-esp', '<strong>No espresso.</strong> ' + rich(b.espresso)));
+      d.appendChild(body);
+      return d;
+    },
+    /* What people say, and what is true. The big ones are read at once; the rest open on tap. */
+    claim: function (b) {
+      if (b.big) {
+        return el('div', 'blk claim-big', '<p class="stamp">Mito</p><p class="claim-myth">' + rich(b.myth) + '</p>' +
+          '<p class="claim-truth"><span class="sr-only">Na verdade: </span>' + rich(b.truth) + '</p>');
+      }
+      var d = el('details', 'claim-row');
+      d.appendChild(el('summary', '', '<span><span class="sr-only">Mito: </span>' + rich(b.myth) + '</span>' + chev()));
+      d.appendChild(el('p', '', rich(b.truth)));
+      return d;
+    },
+    cherry: function (b) { return figure(cherrySVG(), b.caption, 'cherry'); },
+    compass: function (b) { return figure(compassSVG(b), b.caption, 'compass'); },
+    worldmap: function (b, ctx) { return worldMap(b, ctx); },
+    glossary: function (b, ctx) { return glossary(b, ctx); }
   };
   function figure(svg, caption, cls) {
-    var f = el('figure', 'figure' + (cls ? ' ' + cls : ''));
-    f.innerHTML = svg + (caption ? '<figcaption class="fig-cap">' + rich(caption) + '</figcaption>' : '');
-    return f;
+    return el('figure', 'blk figure' + (cls ? ' ' + cls : ''), svg + (caption ? '<figcaption class="fig-cap">' + rich(caption) + '</figcaption>' : ''));
   }
 
   function cherrySVG() {
@@ -1155,8 +1135,8 @@
       t(cx, cy + 30 + 22, L.center, 'svg-label', 'middle', true) +
       t(cx, 20, L.top, 'svg-label', 'middle', true) + t(cx, 32, L.topSub, 'svg-sub') +
       t(cx, 282, L.bottom, 'svg-label', 'middle', true) + t(cx, 295, L.bottomSub, 'svg-sub') +
-      '<g transform="translate(22 ' + cy + ') rotate(-90)">' + t(0, 0, L.left, 'svg-label', 'middle', true) + t(0, 12, L.leftSub, 'svg-sub') + '</g>' +
-      '<g transform="translate(298 ' + cy + ') rotate(90)">' + t(0, 0, L.right, 'svg-label', 'middle', true) + t(0, 12, L.rightSub, 'svg-sub') + '</g>' +
+      '<g transform="translate(19 ' + cy + ') rotate(-90)">' + t(0, 0, L.left, 'svg-label', 'middle', true) + t(0, 15, L.leftSub, 'svg-sub') + '</g>' +
+      '<g transform="translate(301 ' + cy + ') rotate(90)">' + t(0, 0, L.right, 'svg-label', 'middle', true) + t(0, 15, L.rightSub, 'svg-sub') + '</g>' +
       quadText(q[2], 96, 64) + quadText(q[3], 224, 64) + quadText(q[0], 96, 222) + quadText(q[1], 224, 222) +
       '</svg>';
     function quadText(s, x, y) {
@@ -1215,25 +1195,63 @@
     else { lon = (+r.x) * 3.6 - 180; lat = 90 - (+r.y) * 1.8; } // x,y = equirectangular world %
     return [clamp(lon - MAP.lon0, 2, MAP.lon1 - MAP.lon0 - 2), clamp((MAP.lat0 - lat) * MAP.ky, 2, (MAP.lat0 - MAP.lat1) * MAP.ky - 2)];
   }
-  function worldMap(b, ctx) {
+  function xy(p) { return 'cx="' + p[0].toFixed(1) + '" cy="' + p[1].toFixed(1) + '"'; }
+  function worldView(regions) {
     var W = MAP.lon1 - MAP.lon0, H = (MAP.lat0 - MAP.lat1) * MAP.ky;
-    var regions = arr(b.regions);
     var dots = mapDots().map(function (d) { return '<circle class="map-land' + (d[2] ? ' belt' : '') + '" cx="' + d[0].toFixed(1) + '" cy="' + d[1].toFixed(1) + '" r="1.05"/>'; }).join('');
     var tropic = function (lat) { return (MAP.lat0 - lat) * MAP.ky; };
-    var pts = regions.map(function (r) { return project(r); });
-    var svg = '<svg viewBox="0 0 ' + W + ' ' + H.toFixed(1) + '" aria-hidden="true">' +
-      dots +
-      '<line class="map-tropic" x1="0" x2="' + W + '" y1="' + tropic(23.44) + '" y2="' + tropic(23.44) + '"/>' +
-      '<line class="map-tropic" x1="0" x2="' + W + '" y1="' + tropic(-23.44) + '" y2="' + tropic(-23.44) + '"/>' +
-      regions.map(function (r, i) {
-        return '<circle class="map-hit" cx="' + pts[i][0].toFixed(1) + '" cy="' + pts[i][1].toFixed(1) + '" r="18"/>';
-      }).join('') +
-      regions.map(function (r, i) {
-        return '<circle class="map-dot" data-i="' + i + '" cx="' + pts[i][0].toFixed(1) + '" cy="' + pts[i][1].toFixed(1) + '" r="3.6"><title>' + esc(r.name) + '</title></circle>';
-      }).join('') + '</svg>';
-    var f = el('figure', 'figure map-wrap');
-    f.innerHTML = svg +
-      '<div class="map-legend" aria-hidden="true"><span><i style="background:var(--crema)"></i>Cinturão do café, entre os trópicos</span><span><i style="background:var(--accent);border-radius:50%"></i>Regiões abaixo</span></div>' +
+    var pts = regions.map(project);
+    return {
+      width: W, pts: pts, r: 3.6, rSel: 5,
+      legend: '<span><i></i>Cinturão do café, entre os trópicos</span>',
+      svg: '<svg viewBox="0 0 ' + W + ' ' + H.toFixed(1) + '" aria-hidden="true">' + dots +
+        '<line class="map-tropic" x1="0" x2="' + W + '" y1="' + tropic(23.44) + '" y2="' + tropic(23.44) + '"/>' +
+        '<line class="map-tropic" x1="0" x2="' + W + '" y1="' + tropic(-23.44) + '" y2="' + tropic(-23.44) + '"/>' +
+        regions.map(function (r, i) {
+          return '<circle class="map-dot" data-i="' + i + '" ' + xy(pts[i]) + ' r="3.6"><title>' + esc(r.name) + '</title></circle>';
+        }).join('') + '</svg>'
+    };
+  }
+  /* Brazil up close. The growing regions of the Southeast sit a few degrees apart, so the view is cropped
+     around them (true positions); a small locator shows the whole country and anything outside the crop. */
+  var BRAZIL = [[-60, 5.2], [-56, 2], [-52, 4.3], [-50, 1.7], [-50, 0], [-48.5, -1], [-44.5, -2.5], [-40, -2.8], [-37.2, -4.8], [-35.2, -5.4], [-34.8, -7.5], [-35.7, -9.8], [-37.5, -11.5], [-38.5, -13], [-39, -14.8], [-39.1, -16.5], [-39.2, -17.7], [-39.7, -19.4], [-40.3, -20.3], [-41, -21.6], [-42, -22.9], [-43.3, -23], [-44.7, -23.2], [-45.4, -23.8], [-46.4, -24], [-47.9, -25], [-48.5, -25.9], [-48.7, -28.5], [-50.3, -31], [-53.4, -33.7], [-53.2, -32.5], [-57.6, -30.2], [-55.8, -28.2], [-53.7, -27], [-54.6, -25.6], [-54.3, -24], [-55.6, -23.9], [-57.9, -22.1], [-57.7, -19], [-58.4, -16.3], [-60.2, -15.1], [-60.5, -13.8], [-62.8, -12.9], [-65.3, -11.7], [-65.4, -9.8], [-66.7, -9.9], [-69.5, -10.9], [-70.6, -11], [-70.6, -9.5], [-72.9, -9.4], [-73.9, -7.4], [-72.9, -5], [-70, -4.2], [-69.4, -1.5], [-70, .6], [-69.2, 1.7], [-67.9, 1.7], [-66.9, 1.2], [-64, 2.2], [-64.7, 4.2], [-62.8, 4], [-61, 4.5]];
+  var CROP = { lon0: -50.4, lon1: -37.4, lat0: -11.4, lat1: -23.9 };
+  /* Where each name sits relative to its dot: dx, dy, anchor. */
+  var BR_LABEL = { 'cerrado-mineiro': [0, -16, 'middle'], 'sul-de-minas': [13, 5, 'start'], mogiana: [-13, 5, 'end'], 'chapada-diamantina': [-30, 28, 'middle'], 'espirito-santo': [10, -16, 'end'] };
+  function brazilView(regions) {
+    var W = 340, k = W / (CROP.lon1 - CROP.lon0), H = (CROP.lat0 - CROP.lat1) * k;
+    var box = 124, mk = (box - 12) / 40;                           // locator: 40 degrees across
+    function near(lon, lat) { return [(lon - CROP.lon0) * k, (CROP.lat0 - lat) * k]; }
+    function far(lon, lat) { return [6 + (lon + 74.2) * mk, 6 + (5.6 - lat) * mk]; }
+    function outline(f) { return 'M' + BRAZIL.map(function (c) { var q = f(c[0], c[1]); return q[0].toFixed(1) + ' ' + q[1].toFixed(1); }).join(' L') + ' Z'; }
+    var pts = [], marks = '';
+    regions.forEach(function (r, i) {
+      var lon = r.lon != null ? +r.lon : (+r.x) * 3.6 - 180, lat = r.lat != null ? +r.lat : 90 - (+r.y) * 1.8;
+      var inside = lon > CROP.lon0 && lon < CROP.lon1 && lat < CROP.lat0 && lat > CROP.lat1;
+      var q = inside ? near(lon, lat) : far(lon, lat);
+      var l = inside ? (BR_LABEL[r.id] || [13, 5, 'start']) : [0, 20, 'middle'];
+      pts.push(q);
+      marks += '<circle class="map-dot" data-i="' + i + '" ' + xy(q) + ' r="6"><title>' + esc(r.name) + '</title></circle>' +
+        '<text class="map-name' + (inside ? '' : ' small') + '" data-i="' + i + '" x="' + (q[0] + l[0]).toFixed(1) + '" y="' + (q[1] + l[1]).toFixed(1) + '" text-anchor="' + l[2] + '">' + esc(r.name) + '</text>';
+    });
+    var a = far(CROP.lon0, CROP.lat0), z = far(CROP.lon1, CROP.lat1);
+    return {
+      width: W, pts: pts, r: 6, rSel: 8,
+      legend: '<span><i class="frame"></i>No mapa pequeno, a área ampliada</span>',
+      svg: '<svg viewBox="0 0 ' + W + ' ' + H.toFixed(1) + '" aria-hidden="true">' +
+        '<path class="map-country" d="' + outline(near) + '"/>' +
+        '<rect class="map-locator" x="1" y="1" width="' + box + '" height="' + box + '"/>' +
+        '<path class="map-country" d="' + outline(far) + '"/>' +
+        '<rect class="map-frame" x="' + a[0].toFixed(1) + '" y="' + a[1].toFixed(1) + '" width="' + (z[0] - a[0]).toFixed(1) + '" height="' + (z[1] - a[1]).toFixed(1) + '"/>' +
+        marks + '</svg>'
+    };
+  }
+  function worldMap(b, ctx) {
+    var regions = arr(b.regions);
+    var view = b.focus === 'brasil' ? brazilView(regions) : worldView(regions);
+    var f = el('figure', 'blk figure map');
+    f.innerHTML = view.svg +
+      '<div class="map-legend" aria-hidden="true">' + view.legend + '<span><i class="pin"></i>Toque num ponto ou num nome</span></div>' +
       '<div class="map-chips"></div>' +
       (b.caption ? '<figcaption class="fig-cap">' + rich(b.caption) + '</figcaption>' : '');
     var chips = f.querySelector('.map-chips');
@@ -1247,37 +1265,43 @@
       var r = regions[i]; if (!r) return;
       var tgt = r.link || r.target;
       if (tgt && tgt.indexOf('/') >= 0) { goCanonical(tgt); return; }
-      if (tgt) r = Object.assign({}, r, { id: tgt });
-      svgEl.querySelectorAll('.map-dot').forEach(function (d) { d.classList.toggle('sel', +d.dataset.i === i); d.setAttribute('r', +d.dataset.i === i ? 5 : 3.6); });
-      var page = ctx.page;
-      var target = (r.id && page.querySelector('[data-anchor="' + r.id + '"]')) || page.querySelector('.region[data-region="' + (r.id || '') + '"]') ||
-        page.querySelector('.region[data-region-name="' + slug(r.name) + '"]') ||
-        page.querySelector('.region[data-region="' + slug(r.name) + '"]');
-      if (!target) {
-        var all = page.querySelectorAll('.region');
-        for (var k = 0; k < all.length; k++) { var nm = all[k].dataset.regionName; if (nm.indexOf(slug(r.name)) >= 0 || slug(r.name).indexOf(nm) >= 0) { target = all[k]; break; } }
-      }
-      if (target) {
-        var sc = ctx.scroller;
-        var navH = page.querySelector('.nav').offsetHeight;
-        var y = target.getBoundingClientRect().top - sc.getBoundingClientRect().top + sc.scrollTop - navH - 12;
-        sc.scrollTo({ top: y, behavior: mqReduce.matches ? 'auto' : 'smooth' });
-        target.classList.add('flash');
-        setTimeout(function () { target.classList.remove('flash'); }, 1400);
-      }
+      svgEl.querySelectorAll('.map-dot').forEach(function (d) { var on = +d.dataset.i === i; d.classList.toggle('sel', on); d.setAttribute('r', on ? view.rSel : view.r); });
+      var target = anchorTarget(ctx.page, tgt || r.id) || anchorTarget(ctx.page, slug(r.name));
+      if (target) reveal(ctx, target);
     }
     svgEl.addEventListener('click', function (e) {
       if (!regions.length) return;
+      var name = e.target.closest('.map-name');
+      if (name) { jump(+name.dataset.i); return; }
       var pt = svgEl.createSVGPoint(); pt.x = e.clientX; pt.y = e.clientY;
       var m = svgEl.getScreenCTM(); if (!m) return;
       var p = pt.matrixTransform(m.inverse());
       var best = -1, bd = Infinity;
-      pts.forEach(function (q, i) { var d = Math.hypot(q[0] - p.x, q[1] - p.y); if (d < bd) { bd = d; best = i; } });
-      // ~22px hit radius in screen space
-      var scale = svgEl.getBoundingClientRect().width / W;
+      view.pts.forEach(function (q, i) { var d = Math.hypot(q[0] - p.x, q[1] - p.y); if (d < bd) { bd = d; best = i; } });
+      var scale = svgEl.getBoundingClientRect().width / view.width;
       if (bd * scale <= 22) jump(best); // 44 pt hit diameter around each dot (chips below are the accessible control)
     });
     return f;
+  }
+
+  /* ------------------------------------------------------------ Anchors */
+  function anchorTarget(page, id) {
+    if (!id) return null;
+    return page.querySelector('[data-anchor="' + id + '"]') || page.querySelector('.origin[data-name="' + slug(id) + '"]');
+  }
+  function scrollToEl(ctx, target, extra) {
+    if (!target) return;
+    var sc = ctx.scroller;
+    var navH = ctx.page.querySelector('.nav').offsetHeight;
+    var y = target.getBoundingClientRect().top - sc.getBoundingClientRect().top + sc.scrollTop - navH - (extra || 0);
+    sc.scrollTo({ top: Math.max(0, y), behavior: mqReduce.matches ? 'auto' : 'smooth' });
+  }
+  /* Open (if it is a closed row), scroll to it and tint it for a moment. */
+  function reveal(ctx, target) {
+    if (target.tagName === 'DETAILS') target.open = true;
+    scrollToEl(ctx, target, 12);
+    target.classList.add('flash');
+    setTimeout(function () { target.classList.remove('flash'); }, 1600);
   }
 
   /* ------------------------------------------------------------ Glossary */
@@ -1292,56 +1316,38 @@
       groups[L].push(it);
     });
     var sf = searchField('Buscar termo', function (v) { filterGl(v); });
-    sf.classList.add('gl-search');
     w.appendChild(sf);
-    var empty = emptyState('Nenhum termo encontrado', 'Tente outra palavra ou limpe a busca.', function () { sf.clear(); });
+    var empty = emptyState('Esse termo não está aqui', 'Tente escrever de outro jeito.', 'Limpar busca', function () { sf.clear(); });
     empty.hidden = true;
-    var nav = null;
-    if (order.length > 5) {
-      nav = el('div', 'gl-letters');
-      nav.setAttribute('aria-label', 'Ir para a letra');
-      order.forEach(function (L) {
-        var bt = el('button', 'gl-letter-btn', L); bt.type = 'button';
-        bt.addEventListener('click', function () { scrollToEl(ctx, w.querySelector('[data-letter="' + L + '"]'), 0); });
-        nav.appendChild(bt);
-      });
-      w.appendChild(nav);
-    }
+    empty.style.padding = '28px 0 0';
     w.appendChild(empty);
-    var secs = [];
-    order.forEach(function (L) {
-      var sec = el('div', 'gl-sec');
-      var hh = el('h2', 'sec-h small gl-h', L); hh.dataset.letter = L;
-      sec.appendChild(hh);
-      secs.push(sec);
-      w.appendChild(sec);
-      sec.appendChild(group(groups[L].map(function (it) {
-        var r = el('div', 'row');
-        r.id = 'g-' + (it.id || slug(it.termo));
-        r.dataset.term = it.id || slug(it.termo);
+    var secs = order.map(function (L) {
+      var sec = el('section', 'gl-sec');
+      sec.appendChild(el('h2', 'gl-h', L));
+      var dl = el('dl');
+      groups[L].forEach(function (it) {
+        var id = it.id || slug(it.termo);
+        var r = el('div', 'gl-item', '<dt>' + rich(it.termo) + '</dt><dd>' + rich(it.def) + '</dd>');
+        r.id = 'g-' + id;
+        r.dataset.term = id;
         r.dataset.q = norm(it.termo + ' ' + it.def);
-        r.innerHTML = '<div class="row-title">' + rich(it.termo) + '</div><div class="row-sub body secondary">' + rich(it.def) + '</div>';
-        return r;
-      })));
+        dl.appendChild(r);
+      });
+      sec.appendChild(dl);
+      w.appendChild(sec);
+      return sec;
     });
     function filterGl(v) {
       var q = norm(v.trim()), any = false;
       secs.forEach(function (sec) {
         var vis = 0;
-        sec.querySelectorAll('.row').forEach(function (r) { var ok = !q || r.dataset.q.indexOf(q) >= 0; r.hidden = !ok; r.classList.toggle('first-vis', ok && !vis); if (ok) vis++; });
+        sec.querySelectorAll('.gl-item').forEach(function (r) { var ok = !q || r.dataset.q.indexOf(q) >= 0; r.hidden = !ok; if (ok) vis++; });
         sec.hidden = !vis; if (vis) any = true;
       });
-      if (nav) nav.hidden = !!q;
       empty.hidden = any;
     }
+    ctx.clearGlossary = sf.clear;
     return w;
-  }
-  function scrollToEl(ctx, target, extra) {
-    if (!target) return;
-    var sc = ctx.scroller;
-    var navH = ctx.page.querySelector('.nav').offsetHeight;
-    var y = target.getBoundingClientRect().top - sc.getBoundingClientRect().top + sc.scrollTop - navH - (extra || 0);
-    sc.scrollTo({ top: Math.max(0, y), behavior: mqReduce.matches ? 'auto' : 'smooth' });
   }
   function glossaryAnchor(ctx, a) {
     var s = slug(a);
@@ -1351,105 +1357,91 @@
       for (var i = 0; i < all.length; i++) if (slug(all[i].dataset.term).indexOf(s) === 0) { t = all[i]; break; }
     }
     if (!t) return;
-    scrollToEl(ctx, t, 44);
-    t.classList.add('flash');
-    setTimeout(function () { t.classList.remove('flash'); }, 1600);
+    if (t.hidden && ctx.clearGlossary) ctx.clearGlossary();
+    reveal(ctx, t);
   }
 
   /* ================================================================ PAGES */
+  function bandOf(item, tone) { return Object.assign({ tone: tone }, item.band); }
+  /* What to read next. Entries are content links, or {go, title} when the label is not the page title. */
   function nextLinks(rel) {
-    var w = el('nav', 'blk next-links');
-    w.setAttribute('aria-label', 'Continue lendo');
-    arr(rel).forEach(function (t) {
+    var links = arr(rel).map(function (t) {
+      if (typeof t !== 'string') return t;
       var d = describeLink(t);
-      if (!d) return;
-      var link = el('a', 'pressable', '<span>' + rich(d.title) + '</span>' + ic('chevron-right', { cls: 'chev', stroke: 2.4 }));
-      link.href = '#'; link.dataset.go = t;
-      w.appendChild(link);
+      return d && { go: t, title: d.title };
+    }).filter(Boolean);
+    if (!links.length) return document.createDocumentFragment();
+    var w = el('nav', 'next-links');
+    w.setAttribute('aria-label', 'Continue lendo');
+    links.forEach(function (l) {
+      var a = el('a', 'pressable', '<span>' + rich(l.title) + '</span>' + chev());
+      a.setAttribute('href', '#'); a.dataset.go = l.go;
+      w.appendChild(a);
     });
     return w;
   }
+  /* Shorter names for the navigation bar and back button, where the full title cannot fit between them. */
+  var SHORT = { 'sem-moedor': 'Sem moedor', 'dose-proporcao-tempo': 'Proporção', limpeza: 'Limpeza', 'niveis-torra': 'Níveis de torra',
+    processos: 'Processos', temperatura: 'Temperatura', voltagem: 'Voltagem', 'o-que-e-espresso': 'O espresso', 'primeiro-moedor': 'Moedor' };
   function articlePage(a) {
     return {
-      title: a.title, subtitle: a.subtitle, band: a.band,
+      title: a.title, shortTitle: SHORT[a.id], band: bandOf(a, 'ink'),
       build: function (ctx) {
         var f = document.createDocumentFragment();
         f.appendChild(renderBlocks(a.blocks, ctx));
-        if (a.espresso) {
-          var box = el('aside', 'espresso-box');
-          box.innerHTML = '<div class="eb-head"><span class="sq">' + ic('cup', { stroke: 2 }) + '</span><h2 class="eb-title">O que isso muda no seu espresso</h2></div>' + String(a.espresso).split('\n').map(function (t) { return '<p>' + rich(t) + '</p>'; }).join('');
-          f.appendChild(box);
-        }
-        f.appendChild(a.band ? nextLinks(a.related) : relatedList(a.related));
+        f.appendChild(nextLinks(a.related));
         return f;
       },
       anchor: function (x) {
-        var t = this.ctx.page.querySelector('[data-anchor="' + x + '"]');
-        if (t) { scrollToEl(this.ctx, t, 12); return; }
-        glossaryAnchor(this.ctx, x);
+        var t = anchorTarget(this.ctx.page, x);
+        if (t) reveal(this.ctx, t); else glossaryAnchor(this.ctx, x);
       }
     };
-  }
-  function relatedList(rel) {
-    var rows = arr(rel).map(function (t) {
-      var d = describeLink(t);
-      if (!d) return null;
-      return rowLink({ go: t, title: d.title, lead: d.drink ? cupSVG(d.drink, true) : (d.icon ? ic(d.icon, { cls: 'glyph' }) : '') });
-    }).filter(Boolean);
-    if (!rows.length) return document.createDocumentFragment();
-    var w = el('div', 'related');
-    w.appendChild(secH('Veja também', true));
-    w.appendChild(group(rows, 'with-glyph'));
-    return w;
   }
 
   function notFoundPage() {
     return {
       title: 'Não encontrado', large: false,
       build: function (ctx) {
-        var d = el('div', 'empty');
-        d.innerHTML = ic('book') + '<div class="empty-title">Esta página não existe</div><p>O link pode estar desatualizado.</p>';
-        var w = el('div', 'btn-wrap');
-        var b = el('a', 'btn tinted', 'Voltar para ' + esc(tabTitle(ctx.tab)));
-        b.href = '#'; b.dataset.go = ctx.tab;
-        w.appendChild(b);
-        return frag([d, w]);
+        return emptyState('Essa página não existe', 'O link pode estar velho ou com um erro de digitação.',
+          'Voltar para ' + tabTitle(ctx.tab), function () { go(ctx.key, ctx.tab); });
       }
     };
+  }
+
+  /* A flat colour block that is one big link (home and Preparar). */
+  function bigBlock(tone, goTo, html, goLabel) {
+    var a = el('a', 'block tone-' + tone + ' pressable', html + '<span class="block-go"><span>' + rich(goLabel) + '</span>' + ic('chevron-right', { stroke: 2.8 }) + '</span>');
+    a.setAttribute('href', '#'); a.dataset.go = goTo;
+    return a;
   }
 
   var ROOTS = {
     comecar: function () {
       return {
-        title: tabTitle('comecar'),
-        build: function (ctx) {
+        title: tabTitle('comecar'), cls: 'home',
+        build: function () {
           var c = C().comecar || {};
           var f = [];
           arr(c.alerts).forEach(function (al) {
             var k = al.home || {};
-            var v = el('a', 'block tone-volt pressable', '<span class="block-num">' + rich(k.num || al.title) + '</span>' +
-              '<span class="block-line">' + rich(k.line || al.subtitle || '') + '</span>' +
-              '<span class="block-go">' + rich(k.go || 'Abrir') + ic('chevron-right', { stroke: 2.8 }) + '</span>');
-            v.href = '#'; v.dataset.go = al.id;
-            f.push(v);
+            f.push(bigBlock('volt', al.id, '<span class="block-num">' + rich(k.num || al.title) + '</span>' +
+              '<span class="block-line">' + rich(k.line || '') + '</span>', k.go || 'Abrir'));
           });
           var m = c.manual;
           if (m) {
             var card = arr(m.cards)[0] || {};
-            var t = el('a', 'block tone-ink pressable', '<span class="block-title">' + rich(m.title) + '</span>' +
-              (card.ele ? '<span class="block-quote">' + rich(card.ele) + '</span>' : '') +
-              '<span class="block-go">' + arr(m.cards).length + ' respostas na ponta da língua' + ic('chevron-right', { stroke: 2.8 }) + '</span>');
-            t.href = '#'; t.dataset.go = 'manual';
-            f.push(t);
+            f.push(bigBlock('ink', 'manual', '<span class="block-title">' + rich(m.title) + '</span>' +
+              (card.ele ? '<span class="block-quote">' + rich(card.ele) + '</span>' : ''),
+              arr(m.cards).length + ' respostas na ponta da língua'));
           }
           var n = 0;
           arr(c.sections).forEach(function (s) {
-            f.push(el('h2', 'list-h', rich(s.title)));
+            f.push(listH(s.title));
             var ol = el('ol', 'plain-list');
             arr(s.items).forEach(function (a) {
               n++;
-              var li = el('li', '', '<a class="pressable" href="#" data-go="' + esc(a.id) + '"><span class="pl-n" aria-hidden="true">' + n + '</span><span class="pl-t">' + rich(a.title) + '</span>' + ic('chevron-right', { cls: 'chev', stroke: 2.4 }) + '</a>');
-              ol.appendChild(li);
+              ol.appendChild(el('li', '', '<a class="pressable" href="#" data-go="' + esc(a.id) + '"><span class="pl-n" aria-hidden="true">' + n + '</span><span class="pl-t">' + rich(a.title) + '</span>' + chev() + '</a>'));
             });
             f.push(ol);
           });
@@ -1468,30 +1460,22 @@
           var st = { q: '', g: 'all' };
           var sf = searchField('Buscar bebida', function (v) { st.q = v; paint(); });
           f.push(sf);
-          // Filter chips: one per group (five labels do not fit a native segmented control at 375 pt / 130 % text).
+          // Filter chips: one per group (five labels do not fit a segmented control at 375 pt with large text).
           var chips = el('div', 'filter-chips');
           chips.setAttribute('role', 'radiogroup'); chips.setAttribute('aria-label', 'Filtrar por tipo');
-          var opts = [{ id: 'all', label: 'Todos' }].concat(groups.map(function (g, i) { return { id: String(i), label: g.title }; }));
+          var opts = [{ id: 'all', label: 'Todas' }].concat(groups.map(function (g, i) { return { id: String(i), label: g.title }; }));
           var chipEls = opts.map(function (o) {
             var c = el('button', 'chip', esc(o.label)); c.type = 'button'; c.setAttribute('role', 'radio');
             c.addEventListener('click', function () { st.g = o.id; paint(); });
             chips.appendChild(c); return c;
           });
           f.push(chips);
-          var host = el('div', 'list-host');
+          var host = el('div');
           f.push(host);
-          function ratioChip(r) {
-            var m = String(r || '').match(/1:\d+(?:,\d+)?(?:\s+a\s+1:\d+(?:,\d+)?)?/);
-            return m ? m[0] : '';
-          }
           function row(d) {
-            var meta = '';
-            var rc = ratioChip(d.ratio);
-            if (rc) meta += '<span class="meta-chip">' + rich(rc) + '</span>';
-            if (d.volume) meta += '<span class="meta-chip">' + rich(d.volume) + '</span>';
-            var r = rowLink({ go: d.id, title: d.name, sub: d.short, meta: meta, lead: cupSVG(d, true) });
-            attachLongPress(r, function () { quickView(d, ctx); });
-            return r;
+            var li = indexRow({ go: d.id, title: d.name, sub: d.short, lead: cupSVG(d, true) });
+            attachLongPress(li.firstChild, function () { quickView(d, ctx); });
+            return li;
           }
           function paint() {
             chipEls.forEach(function (c, i) { c.setAttribute('aria-checked', opts[i].id === st.g ? 'true' : 'false'); });
@@ -1502,11 +1486,11 @@
               var items = arr(g.items).filter(function (d) { return !q || norm([d.name, d.aka, d.short, d.ratio, d.volume, d.cup].join(' ')).indexOf(q) >= 0; });
               if (!items.length) return;
               any = true;
-              host.appendChild(secH(g.title));
-              host.appendChild(group(items.map(row), 'with-cup'));
+              host.appendChild(listH(g.title));
+              host.appendChild(indexList(items.map(row), 'drink-list'));
             });
-            if (!any) host.appendChild(emptyState('Nenhuma bebida encontrada', 'Tente outro nome ou escolha “Todos”.', function () { st.q = ''; st.g = 'all'; sf.clear(); paint(); }));
-            else host.appendChild(el('p', 'caption', 'Toque e segure uma bebida para uma prévia rápida.'));
+            if (!any) host.appendChild(emptyState('Nenhuma bebida com esse nome', 'Tente outra palavra ou volte pra lista inteira.', 'Ver todas', function () { st.g = 'all'; sf.clear(); }));
+            else host.appendChild(el('p', 'note', 'Toque e segure uma bebida pra espiar sem sair da lista.'));
           }
           paint();
           return frag(f);
@@ -1515,29 +1499,32 @@
     },
     preparar: function () {
       return {
-        title: tabTitle('preparar'),
-        build: function (ctx) {
+        title: tabTitle('preparar'), cls: 'home',
+        build: function () {
           var p = C().preparar || {};
           var f = [];
-          if (p.intro) f.push(el('p', 'intro', rich(p.intro)));
-          var tiles = el('div', 'tiles');
-          var t1 = el('a', 'tile'); t1.href = '#'; t1.dataset.go = 'ratio';
-          var t2 = el('a', 'tile'); t2.href = '#'; t2.dataset.go = 'timer';
-          tiles.appendChild(t1); tiles.appendChild(t2);
+          var tm = p.timer || {};
+          var block = bigBlock('espresso', 'timer', '', 'Cronometrar um shot');
+          f.push(block);
+          var host = el('div');
+          f.push(host);
           function paint() {
-            var r = ratioState();
-            t1.innerHTML = '<div class="tile-top">' + sq('scale') + '</div><div class="tile-title">Proporção</div><div class="tile-val">' + fmt(r.dose, r.dose % 1 ? 1 : 0) + '\u00a0g → ' + fmt(r.dose * r.ratio, 0) + '\u00a0g</div><div class="tile-sub">Pó → bebida, 1:' + fmt(r.ratio, 1) + '</div>';
-            var tm = p.timer || {};
             var last = store.get('bambino.lastShot', null);
-            t2.innerHTML = '<div class="tile-top">' + sq('timer') + '</div><div class="tile-title">Cronômetro</div><div class="tile-val">' + (last ? fmt(last, 1) + '\u00a0s' : fmt(tm.targetMin || 25) + '–' + fmt(tm.targetMax || 30) + '\u00a0s') + '</div><div class="tile-sub">' + (last ? 'Último shot' : 'Faixa de referência') + '</div>';
+            block.innerHTML = '<span class="block-num">' + rich(last ? fmt(last, 1) + ' s' : fmt(tm.targetMin || 25) + '–' + fmt(tm.targetMax || 30) + ' s') + '</span>' +
+              '<span class="block-line">' + (last ? 'Foi o seu último shot.' : 'É a faixa de referência de um shot.') + '</span>' +
+              '<span class="block-go"><span>Cronometrar um shot</span>' + ic('chevron-right', { stroke: 2.8 }) + '</span>';
+            var r = ratioState();
+            var rows = [indexRow({ go: 'ratio', title: 'Proporção', sub: fmt(r.dose, r.dose % 1 ? 1 : 0) + ' g de pó em 1:' + fmt(r.ratio, r.ratio % 1 ? 1 : 0), value: fmt(r.dose * r.ratio, 0) + ' g' })];
+            if (p.leite) rows.push(indexRow({ go: 'leite', title: p.leite.title, sub: p.leite.subtitle }));
+            if (arr(p.diagnostico).length) rows.push(indexRow({ go: 'diagnostico', title: DIAG_TITLE, sub: p.diagnosticoSub }));
+            host.innerHTML = '';
+            var list = indexList(rows);
+            list.style.marginTop = '28px';
+            host.appendChild(list);
+            fitType(block.parentNode || block);
           }
           paint();
           this.onShow = paint;
-          f.push(tiles);
-          var rows = [];
-          if (p.leite) rows.push(rowLink({ go: 'leite', title: p.leite.title, sub: p.leite.subtitle, lead: sq(p.leite.icon && window.icon.has(p.leite.icon) ? p.leite.icon : 'milk', 'slate') }));
-          if (arr(p.diagnostico).length) rows.push(rowLink({ go: 'diagnostico', title: p.diagnosticoTitle || 'Diagnóstico do espresso', sub: p.diagnosticoSub || 'Azedo, amargo, rápido ou lento: o que mudar', lead: sq('wrench', 'terracotta') }));
-          if (rows.length) { f.push(secH('Guias')); f.push(group(rows, 'with-sq')); }
           return frag(f);
         }
       };
@@ -1549,13 +1536,17 @@
           var e = C().entender || {};
           var secs = arr(e.sections);
           var f = [];
-          if (e.intro) f.push(el('p', 'intro', rich(e.intro)));
           var st = { q: '', s: 0 };
-          var index = {};
-          var rawText = {};
-          secs.forEach(function (sec) { arr(sec.items).forEach(function (a) { rawText[a.id] = flatText(a.blocks); index[a.id] = norm(a.title + ' ' + a.subtitle + ' ' + rawText[a.id]); }); });
+          var index = {}, rawText = {};
+          secs.forEach(function (sec) {
+            arr(sec.items).forEach(function (a) {
+              var band = a.band || {};
+              rawText[a.id] = ((band.line || '') + ' ' + flatText(a.blocks)).replace(/\s+/g, ' ').trim();
+              index[a.id] = norm([a.title, a.subtitle || '', band.num || '', band.unit || '', rawText[a.id]].join(' '));
+            });
+          });
           function snippet(a, q) {
-            if (norm(a.title + ' ' + a.subtitle).indexOf(q) >= 0) return '';
+            if (norm(a.title + ' ' + (a.subtitle || '')).indexOf(q) >= 0) return '';
             var raw = rawText[a.id], i = norm(raw).indexOf(q);
             if (i < 0) return '';
             var from = Math.max(0, i - 28), to = Math.min(raw.length, i + q.length + 36);
@@ -1564,28 +1555,26 @@
           var sf = searchField('Buscar em Entender', function (v) { st.q = v; paint(); });
           f.push(sf);
           var segWrap = el('div', 'seg-wrap');
-          var seg = segmented(secs.map(function (s2, i) { return { label: s2.title, value: i }; }), 0, function (v) { st.s = v; paint(); }, 'Seção');
-          segWrap.appendChild(seg);
+          segWrap.appendChild(segmented(secs.map(function (s2, i) { return { label: s2.title, value: i }; }), 0, function (v) { st.s = v; paint(); }, 'Seção'));
           f.push(segWrap);
-          var host = el('div', 'list-host');
+          var host = el('div');
           f.push(host);
           function list(items, q) {
-            return group(items.map(function (a) {
-              var name = a.icon && window.icon.has(a.icon) ? a.icon : 'book';
-              var sn = q ? snippet(a, q) : '';
-              var r = rowLink({ go: a.id, title: a.title, sub: a.subtitle, lead: sq(name) });
-              if (sn) r.querySelector('.row-main').appendChild(el('div', 'row-snip', 'Encontrado em: ' + sn));
-              return r;
-            }), 'with-sq');
+            return indexList(items.map(function (a) {
+              return indexRow({
+                go: a.id, title: a.title, sub: a.subtitle, subHtml: q ? snippet(a, q) : '',
+                lead: '<span class="swatch tone-' + esc((a.band || {}).tone || 'ink') + '" aria-hidden="true"></span>'
+              });
+            }));
           }
           function paint() {
             host.innerHTML = '';
             var q = norm(st.q.trim());
             segWrap.hidden = !!q;
             if (!q) {
-              var g1 = list(arr((secs[st.s] || {}).items));
-              g1.style.marginTop = '16px';
-              host.appendChild(g1);
+              var l = list(arr((secs[st.s] || {}).items));
+              l.style.marginTop = '20px';
+              host.appendChild(l);
               return;
             }
             var any = false;
@@ -1593,10 +1582,10 @@
               var items = arr(sec.items).filter(function (a) { return index[a.id].indexOf(q) >= 0; });
               if (!items.length) return;
               any = true;
-              host.appendChild(secH(sec.title));
+              host.appendChild(listH(sec.title));
               host.appendChild(list(items, q));
             });
-            if (!any) host.appendChild(emptyState('Nada encontrado', 'Tente outra palavra, como “torra” ou “água”.', function () { sf.clear(); }));
+            if (!any) host.appendChild(emptyState('Nada com essa palavra', 'Tente “torra”, “água” ou “crema”.', 'Limpar busca', function () { sf.clear(); }));
           }
           paint();
           return frag(f);
@@ -1606,15 +1595,37 @@
   };
 
   /* ---------------------------------------------------------------- Drinks */
+  /* The cup, cropped to what it draws, with its legend. */
+  function drinkArt(d) {
+    var shape = cupShape(d);
+    var fill = clamp(d.fill == null ? 85 : +d.fill, 0, 100);
+    var surface = shape.bottom - (shape.bottom - shape.top) * fill / 100;
+    var top = shape.top;
+    arr(d.layers).forEach(function (l) {
+      if (l.float) top = Math.min(top, surface - (l.kind === 'icecream' ? 57 : 30));
+    });
+    var cut = Math.max(0, Math.floor(top - 14));
+    return cupSVG(d).replace('viewBox="0 0 200 172"', 'viewBox="0 ' + cut + ' 200 ' + (172 - cut) + '"') + legendHTML(d);
+  }
+  function drinkFacts(d) {
+    var facts = [];
+    if (d.espresso) facts.push({ label: 'Espresso', value: d.espresso });
+    var cup = String(d.cup || '');
+    if (d.volume && cup.indexOf(d.volume) < 0) facts.push({ label: 'Rende', value: d.volume });
+    if (cup) {
+      var m = / ou /.test(cup) ? null : cup.match(/^(x[ií]cara|copo)(?: de)? (.+)$/i);
+      facts.push(m ? { label: m[1].charAt(0).toUpperCase() + m[1].slice(1), value: m[2] } : { label: 'Servir em', value: cup });
+    }
+    return facts;
+  }
   /* Checkable recipe steps. Checked state is kept per drink in localStorage (store has try/catch). */
   function drinkSteps(d) {
-    var KEY = 'bambino.steps.' + d.id;
+    var KEY = 'bambino.steps2.' + d.id;
     var steps = arr(d.steps);
     var saved = store.get(KEY, []);
     var done = steps.map(function (_, i) { return !!(Array.isArray(saved) && saved[i]); });
-    var w = el('div', 'steps-wrap');
-    var head = el('div', 'steps-head');
-    head.innerHTML = '<h2 class="sec-h">Como fazer</h2>';
+    var w = el('div');
+    var head = el('div', 'steps-head', '<h2 class="list-h">Como fazer</h2>');
     var reset = el('button', 'steps-reset', 'Recomeçar'); reset.type = 'button';
     head.appendChild(reset);
     w.appendChild(head);
@@ -1624,28 +1635,24 @@
     var btns = steps.map(function (t, i) {
       var li = el('li', 'step');
       var b = el('button', 'step-btn'); b.type = 'button'; b.setAttribute('role', 'checkbox');
-      var txt = typeof t === 'string' ? '<span class="step-text">' + rich(t) + '</span>' :
-        (t.title ? '<span class="step-title">' + rich(t.title) + '</span>' : '') + '<span class="step-text">' + rich(t.text || '') + '</span>';
+      var txt = typeof t === 'string' ? rich(t) :
+        (t.title ? '<span class="step-title">' + rich(t.title) + '</span>' : '') + rich(t.text || '');
       b.innerHTML = '<span class="step-n" aria-hidden="true"></span><span class="step-body">' + txt + '</span>';
       b.addEventListener('click', function () { done[i] = !done[i]; store.set(KEY, done); paint(); });
       li.appendChild(b); ol.appendChild(li);
       return b;
     });
-    if (d.tip) {
-      var tl = el('li', 'step-tip');
-      tl.innerHTML = '<span class="ctile" aria-hidden="true">' + ic('lightbulb', { stroke: 2 }) + '</span><p>' + rich(d.tip) + '</p>';
-      ol.appendChild(tl);
-    }
+    if (d.tip) ol.appendChild(el('li', 'step-tip', rich(d.tip)));
     w.appendChild(ol);
     function paint() {
       var n = 0;
       btns.forEach(function (b, i) {
         b.classList.toggle('done', done[i]);
         b.setAttribute('aria-checked', done[i] ? 'true' : 'false');
-        b.querySelector('.step-n').innerHTML = done[i] ? ic('check', { stroke: 3, size: 16 }) : String(i + 1);
+        b.querySelector('.step-n').innerHTML = done[i] ? ic('check', { stroke: 3, size: 24 }) : String(i + 1);
         if (done[i]) n++;
       });
-      count.textContent = n ? n + ' de ' + steps.length + ' passos feitos' : 'Toque em um passo para marcar como feito';
+      count.textContent = n ? n + ' de ' + steps.length + ' passos feitos' : 'Toque num passo pra marcar como feito';
       reset.hidden = !n;
     }
     reset.addEventListener('click', function () { done = done.map(function () { return false; }); store.set(KEY, done); paint(); });
@@ -1653,29 +1660,13 @@
     return w;
   }
   function drinkPage(d) {
-    var band = null;
-    if (d.band) {
-      var art = cupSVG(d);
-      if (!arr(d.layers).some(function (l) { return l.float; })) { var cut = Math.max(0, cupShape(d).top - 16); art = art.replace('viewBox="0 0 200 172"', 'viewBox="0 ' + cut + ' 200 ' + (172 - cut) + '"'); }
-      band = Object.assign({ art: art + legendHTML(d) }, d.band);
-    }
     return {
-      title: d.name, subtitle: d.aka, band: band,
-      build: function (ctx) {
-        var f = [];
-        if (band) {
-          f.push(BLOCKS.leader({ items: [{ label: 'Espresso', value: d.espresso }, { label: 'Xícara', value: String(d.cup || '').replace(/^x[ií]cara de /i, '') }] }));
-          if (arr(d.steps).length) f.push(drinkSteps(d));
-          f.push(nextLinks(d.related));
-          return frag(f);
-        }
-        var hero = el('div', 'drink-hero');
-        hero.innerHTML = '<div class="drink-cup">' + cupSVG(d) + '</div>' + legendHTML(d) + (d.short ? '<p class="drink-short">' + rich(d.short) + '</p>' : '');
-        f.push(hero);
-        var st = el('div', ''); st.innerHTML = statsHTML(d); f.push(st.firstChild);
+      title: d.name,
+      band: Object.assign(bandOf(d, 'shot'), { sub: d.aka, art: drinkArt(d) }),
+      build: function () {
+        var f = [leader(drinkFacts(d))];
         if (arr(d.steps).length) f.push(drinkSteps(d));
-        else if (d.tip) f.push(BLOCKS.callout({ tone: 'tip', text: d.tip }));
-        f.push(relatedList(d.related));
+        f.push(nextLinks(d.related));
         return frag(f);
       }
     };
@@ -1695,8 +1686,8 @@
   }
   function quickView(d, ctx) {
     openSheet(function (body, close) {
-      body.innerHTML = '<div class="sheet-title">' + rich(d.name) + '</div>' +
-        '<div class="drink-hero" style="margin-top:12px"><div class="drink-cup">' + cupSVG(d) + '</div>' + legendHTML(d) + '</div>' + statsHTML(d);
+      body.appendChild(bandHead(d.name, Object.assign(bandOf(d, 'shot'), { art: drinkArt(d) }), 'h2'));
+      body.appendChild(leader(drinkFacts(d)));
       var b = el('button', 'btn', 'Ver o preparo'); b.type = 'button';
       b.addEventListener('click', function () { close('go'); go(ctx.key, d.id); });
       body.appendChild(b);
@@ -1707,29 +1698,29 @@
   function manualPage() {
     var m = (C().comecar || {}).manual || {};
     return {
-      title: m.title || 'Manual', shortTitle: 'Manual', subtitle: m.subtitle,
-      build: function (ctx) {
+      title: m.title || 'Manual', shortTitle: 'Manual',
+      band: { tone: 'ink', line: m.intro },
+      build: function () {
         var f = [];
-        if (m.intro) f.push(el('p', 'intro', rich(m.intro)));
         var cards = arr(m.cards);
         if (cards.length) {
-          f.push(secH(m.cardsTitle || 'Ele diz, você responde'));
+          f.push(listH('Ele diz, você responde'));
           var wrap = el('div', 'cards');
           wrap.setAttribute('aria-label', 'Cartões, deslize para o lado');
           cards.forEach(function (c, i) {
             var card = el('article', 'mcard');
             card.setAttribute('aria-label', 'Cartão ' + (i + 1) + ' de ' + cards.length);
-            card.innerHTML = '<div class="mcard-k">Ele diz</div><p class="mcard-ele">' + rich(String(c.ele || '').replace(/^["“]|["”]$/g, '')) + '</p>' +
-              '<div class="mcard-sep"></div><div class="mcard-k">Você responde</div><p class="mcard-voce">' + rich(c.voce) + '</p>' +
-              (c.porque ? '<p class="mcard-porque"><b>Porquê:</b> ' + rich(c.porque) + '</p>' : '') +
-              (c.link ? '<a class="link-accent" href="#" data-go="' + esc(c.link) + '">Entender melhor' + ic('chevron-right', { stroke: 2.4 }) + '</a>' : '');
+            card.innerHTML = '<div class="mcard-top tone-ink"><p class="mcard-who">Ele diz</p><p class="mcard-ele">' + rich(String(c.ele || '').replace(/^["“]|["”]$/g, '')) + '</p></div>' +
+              '<div class="mcard-body"><p class="mcard-who">Você responde</p><p class="mcard-voce">' + rich(String(c.voce || '').replace(/^["“]|["”]$/g, '')) + '</p>' +
+              (c.porque ? '<p class="mcard-porque">' + rich(c.porque) + '</p>' : '') +
+              (c.link ? '<a class="link-accent" href="#" data-go="' + esc(c.link) + '">Entender melhor' + chev() + '</a>' : '') + '</div>';
             wrap.appendChild(card);
           });
           f.push(wrap);
-          var pager = el('div', 'pager');
-          pager.innerHTML = '<span class="pager-count" aria-live="polite">1 de ' + cards.length + '</span>' + (cards.length <= 14 ? '<span class="dots" aria-hidden="true">' + cards.map(function (_, i) { return '<i' + (i ? '' : ' class="on"') + '></i>'; }).join('') + '</span>' : '');
+          var pager = el('div', 'pager', '<span class="pager-count" aria-live="polite">1 de ' + cards.length + '</span>' +
+            (cards.length <= 14 ? '<span class="dots-pager" aria-hidden="true">' + cards.map(function (_, i) { return '<i' + (i ? '' : ' class="on"') + '></i>'; }).join('') + '</span>' : ''));
           f.push(pager);
-          var cnt = pager.querySelector('.pager-count'), dots = pager.querySelectorAll('.dots i');
+          var cnt = pager.querySelector('.pager-count'), dots = pager.querySelectorAll('.dots-pager i');
           var cur = 0;
           wrap.addEventListener('scroll', function () {
             var first = wrap.firstElementChild; if (!first) return;
@@ -1743,15 +1734,13 @@
           }, { passive: true });
         }
         if (arr(m.quiz).length) {
-          f.push(secH(m.quizTitle || 'Quiz rápido'));
+          f.push(listH('Quiz rápido'));
           f.push(quiz(m.quiz));
         }
         var pal = arr(m.palavras);
         if (pal.length) {
-          f.push(secH(m.palavrasTitle || 'Palavras pra soltar na conversa'));
-          f.push(group(pal.map(function (p) {
-            return rowLink({ go: p.link, title: p.termo, sub: p.significado, strong: true });
-          })));
+          f.push(listH('Palavras pra soltar na conversa'));
+          f.push(indexList(pal.map(function (p) { return indexRow({ go: p.link, title: p.termo, sub: p.significado }); })));
         }
         return frag(f);
       }
@@ -1759,7 +1748,7 @@
   }
 
   function quiz(qs) {
-    var KEY = 'bambino.quiz.v1';
+    var KEY = 'bambino.quiz.v2';
     var saved = store.get(KEY, null);
     var answers = saved && Array.isArray(saved.answers) && saved.n === qs.length ? saved.answers.slice() : [];
     var w = el('div', 'quiz');
@@ -1774,7 +1763,6 @@
     }
     function render() {
       w.innerHTML = '';
-      var card = el('div', 'quiz-card');
       var i = answers.length;
       if (i >= qs.length) {
         var s = score();
@@ -1783,35 +1771,30 @@
           return '<li class="' + (good ? 'ok' : 'no') + '" aria-label="Pergunta ' + (n + 1) + ': ' + (good ? 'certa' : 'errada') + '"><span class="qm">' + ic(good ? 'check' : 'xmark') + '</span><b>' + (n + 1) + '</b></li>';
         }).join('') + '</ol>';
         var msg = s === qs.length ? 'Gabaritou. Pode puxar o assunto na próxima roda de café.' :
-          s >= qs.length - 1 ? 'Quase tudo. Refaça o quiz para rever a explicação da que errou.' :
-            s >= Math.ceil(qs.length / 2) ? 'Bom começo. Releia os cartões acima e tente de novo.' :
-              'Ainda não. Passe pelos cartões com calma e refaça: ninguém nasce sabendo.';
-        card.innerHTML = '<div class="quiz-done"><div class="overline">Resultado</div><div class="quiz-score" aria-live="polite">' + s + '<small> de ' + qs.length + '</small></div><p class="quiz-msg">' + msg + '</p>' + marks + '</div>';
-        var bw = el('div', ''); bw.style.padding = '0 16px 16px';
-        var b = el('button', 'btn tinted', ic('reset', { size: 20 }) + 'Refazer o quiz'); b.type = 'button';
-        b.addEventListener('click', function () { answers = []; save(); render(); });
-        bw.appendChild(b); card.appendChild(bw);
-        w.appendChild(card);
+          s >= qs.length - 1 ? 'Passou perto. Refaça pra ver a explicação da que escapou.' :
+            s >= Math.ceil(qs.length / 2) ? 'Bom começo. Dê outra olhada nos cartões e tente de novo.' :
+              'Ainda não deu. Passe pelos cartões com calma e volte aqui.';
+        var done = el('div', 'quiz-done', '<p class="quiz-n">Seu resultado</p><p class="quiz-score" aria-live="polite">' + s + '<small>de ' + qs.length + '</small></p><p class="quiz-msg">' + msg + '</p>' + marks);
+        var again = el('button', 'btn outline', ic('reset', { size: 20 }) + 'Refazer o quiz'); again.type = 'button';
+        again.addEventListener('click', function () { answers = []; save(); render(); });
+        done.appendChild(again);
+        w.appendChild(done);
         return;
       }
       var q = qs[i];
-      var top = el('div', 'quiz-top');
-      top.innerHTML = progress(i) + '<div class="overline">Pergunta ' + (i + 1) + ' de ' + qs.length + '</div><p class="quiz-q" id="qq' + (++uid) + '">' + rich(q.q) + '</p>';
-      card.appendChild(top);
-      var opts = el('div', 'quiz-opts');
+      var top = el('div', 'quiz-top', progress(i) + '<p class="quiz-n">Pergunta ' + (i + 1) + ' de ' + qs.length + '</p><p class="quiz-q" id="qq' + (++uid) + '">' + rich(q.q) + '</p>');
+      w.appendChild(top);
+      var opts = el('div');
       opts.setAttribute('role', 'radiogroup');
       opts.setAttribute('aria-labelledby', top.querySelector('.quiz-q').id);
       var rows = arr(q.options).map(function (o, k) {
-        var r = el('button', 'row pressable');
+        var r = el('button', 'opt pressable', '<span class="quiz-mark"></span><span>' + rich(o) + '</span>');
         r.type = 'button'; r.setAttribute('role', 'radio'); r.setAttribute('aria-checked', 'false');
-        r.innerHTML = '<span class="quiz-mark"></span><div class="row-main"><div class="row-title">' + rich(o) + '</div></div>';
         r.addEventListener('click', function () { pick(k); });
         opts.appendChild(r);
         return r;
       });
-      opts.style.setProperty('--sep-inset', '52px');
-      card.appendChild(opts);
-      w.appendChild(card);
+      w.appendChild(opts);
       var picked = false;
       function pick(k) {
         if (picked) return; picked = true;
@@ -1828,8 +1811,8 @@
         var last = answers.length >= qs.length;
         setTimeout(function () {
           openSheet(function (body, close) {
-            body.innerHTML = '<div class="sheet-title ' + (ok ? 'ok' : 'no') + '">' + ic(ok ? 'check' : 'info', { stroke: 2.2 }) + '<span>' + (ok ? 'Isso mesmo' : 'Não exatamente') + '</span></div>' +
-              (!ok ? '<p class="sheet-text"><strong>Resposta:</strong> ' + rich(q.options[+q.correct]) + '</p>' : '') +
+            body.innerHTML = '<h2 class="verdict ' + (ok ? 'tone-regioes' : 'tone-ink') + '">' + ic(ok ? 'check' : 'xmark') + '<span>' + (ok ? 'Isso mesmo' : 'Não foi essa') + '</span></h2>' +
+              (!ok ? '<p class="sheet-text">A certa era <strong>' + rich(q.options[+q.correct]) + '</strong>.</p>' : '') +
               (q.explain ? '<p class="sheet-text">' + rich(q.explain) + '</p>' : '');
             var b = el('button', 'btn', last ? 'Ver resultado' : 'Próxima pergunta'); b.type = 'button';
             b.addEventListener('click', function () { close('next'); });
@@ -1860,7 +1843,7 @@
       defaultDose: +r.defaultDose || 16, doseMin: +r.doseMin || 7, doseMax: +r.doseMax || 22,
       ratioMin: +r.ratioMin || 1, ratioMax: +r.ratioMax || 3,
       mlFactor: Array.isArray(r.mlFactor) ? r.mlFactor : [1.2, 1.5],
-      scaleNote: r.scaleNote, mlNote: r.mlNote, note: r.note
+      mlNote: r.mlNote, note: r.note
     };
   }
   function ratioState() {
@@ -1876,78 +1859,74 @@
   function ratioPage() {
     return {
       title: 'Calculadora de proporção', shortTitle: 'Proporção',
-      build: function (ctx) {
+      build: function () {
         var cfg = ratioCfg();
         var st = ratioState();
         var f = [];
-        var res = el('div', 'tool-card');
-        res.innerHTML = '<div class="result-k">Bebida na xícara</div><div class="result-big" aria-live="polite"><span class="yv"></span><small>g</small></div>' +
-          '<div class="result-sub"></div>' +
-          '<div class="result-hint">' + ic('scale') + '<span class="ml"></span></div>';
+        var res = el('div', 'blk result', '<p class="result-k">Bebida na xícara</p><div class="result-big" aria-live="polite"><span class="yv"></span><small>g</small></div><p class="result-sub"></p>');
         f.push(res);
-        var yv = res.querySelector('.yv'), sub = res.querySelector('.result-sub'), ml = res.querySelector('.ml');
+        var yv = res.querySelector('.yv'), sub = res.querySelector('.result-sub');
 
-        // Preset cards: name + ratio, the selected one filled.
         var cards = [], presetNote = null;
         if (cfg.presets.length) {
           var pw = el('div', 'presets');
           pw.setAttribute('role', 'radiogroup'); pw.setAttribute('aria-label', 'Estilo');
           cfg.presets.forEach(function (p) {
-            var c = el('button', 'preset-card'); c.type = 'button'; c.setAttribute('role', 'radio');
-            c.innerHTML = '<span class="pc-n">' + esc(p.name) + '</span><span class="pc-r">1:' + fmt(p.ratio, p.ratio % 1 ? 1 : 0) + '</span>';
+            var c = el('button', 'preset', '<span class="preset-name">' + esc(p.name) + '</span><span class="preset-ratio">1:' + fmt(p.ratio, p.ratio % 1 ? 1 : 0) + '</span>');
+            c.type = 'button'; c.setAttribute('role', 'radio');
             c.addEventListener('click', function () { st.ratio = clamp(p.ratio, cfg.ratioMin, cfg.ratioMax); st.preset = p.id; rs.set(st.ratio); update(); });
             cards.push({ id: p.id, el: c }); pw.appendChild(c);
           });
           f.push(pw);
-          presetNote = el('p', 'foot preset-note');
+          presetNote = el('p', 'note preset-note');
           f.push(presetNote);
         }
 
-        // Dose card: label left, value + stepper right, slider below.
-        var dCard = el('div', 'slider-card');
-        var dTop = el('div', 'ctl-top', '<span class="ctl-label">Pó (dose)</span>');
+        // Dose: label left, value and stepper right, slider below.
+        var dCtl = el('div', 'ctl');
+        var dTop = el('div', 'ctl-top', '<span class="ctl-label">Pó no cesto</span>');
         var dVal = el('span', 'ctl-val');
         var stp = stepper(function () { setDose(st.dose - 0.5); }, function () { setDose(st.dose + 0.5); }, 'Dose em gramas');
         var right = el('div', 'ctl-right');
         right.appendChild(dVal); right.appendChild(stp);
         dTop.appendChild(right);
-        dCard.appendChild(dTop);
+        dCtl.appendChild(dTop);
         var ds = slider({ min: cfg.doseMin, max: cfg.doseMax, step: 0.5, value: st.dose, label: 'Dose de pó', format: function (v) { return fmt(v, 1) + ' gramas'; }, onInput: function (v) { st.dose = v; update(); } });
-        dCard.appendChild(ds);
-        dCard.appendChild(el('div', 'slider-ends', '<span>' + fmt(cfg.doseMin) + '\u00a0g</span><span>' + fmt(cfg.doseMax) + '\u00a0g</span>'));
-        f.push(dCard);
+        dCtl.appendChild(ds);
+        dCtl.appendChild(el('div', 'slider-ends', '<span>' + fmt(cfg.doseMin) + '\u00a0g</span><span>' + fmt(cfg.doseMax) + '\u00a0g</span>'));
+        f.push(dCtl);
 
-        // Ratio card
-        var rCard = el('div', 'slider-card');
+        var rCtl = el('div', 'ctl');
         var rTop = el('div', 'ctl-top', '<span class="ctl-label">Proporção</span>');
         var rVal = el('span', 'ctl-val'); rTop.appendChild(rVal);
-        rCard.appendChild(rTop);
+        rCtl.appendChild(rTop);
         var rs = slider({ min: cfg.ratioMin, max: cfg.ratioMax, step: 0.1, value: st.ratio, label: 'Proporção', format: function (v) { return '1 para ' + fmt(v, 1); }, onInput: function (v) {
           st.ratio = v;
           var match = cfg.presets.filter(function (p) { return Math.abs(p.ratio - v) < 0.05; })[0];
           st.preset = match ? match.id : null;
           update();
         } });
-        rCard.appendChild(rs);
-        rCard.appendChild(el('div', 'slider-ends', '<span>1:' + fmt(cfg.ratioMin, 0) + '</span><span>1:' + fmt(cfg.ratioMax, 0) + '</span>'));
-        f.push(rCard);
-        if (cfg.note) f.push(el('p', 'caption', rich(cfg.note)));
-        if (!cfg.note) f.push(BLOCKS.callout({ tone: 'info', title: 'Pese, não meça em ml', text: cfg.scaleNote || 'Use uma balança de cozinha com precisão de <strong>0,1 g</strong>: coloque a xícara em cima, zere e pare o shot quando chegar no número. A crema ocupa volume, então mililitros enganam.' }));
+        rCtl.appendChild(rs);
+        rCtl.appendChild(el('div', 'slider-ends', '<span>1:' + fmt(cfg.ratioMin, 0) + '</span><span>1:' + fmt(cfg.ratioMax, 0) + '</span>'));
+        f.push(rCtl);
+        var ml = el('p', 'note');
+        f.push(ml);
+        if (cfg.note) f.push(el('p', 'note', rich(cfg.note)));
 
         function setDose(v) { st.dose = clamp(Math.round(v * 2) / 2, cfg.doseMin, cfg.doseMax); ds.set(st.dose); update(); }
         function update() {
           var y = st.dose * st.ratio;
           yv.textContent = fmt(y, 0);
-          sub.textContent = fmt(st.dose, st.dose % 1 ? 1 : 0) + '\u00a0g de pó × 1:' + fmt(st.ratio, 1);
-          ml.innerHTML = cfg.mlNote ? rich(cfg.mlNote.replace('{min}', fmt(y * cfg.mlFactor[0])).replace('{max}', fmt(y * cfg.mlFactor[1]))) :
-            '≈ ' + fmt(y * cfg.mlFactor[0]) + '–' + fmt(y * cfg.mlFactor[1]) + ' ml na xícara: a crema infla o volume. Conte pelo peso.';
+          sub.textContent = fmt(st.dose, st.dose % 1 ? 1 : 0) + '\u00a0g de pó na proporção 1:' + fmt(st.ratio, 1);
+          var mlText = cfg.mlNote || 'Na xícara isso parece de {min} a {max} ml, porque a crema ocupa espaço. Conte pelo peso.';
+          ml.innerHTML = rich(mlText.replace('{min}', fmt(y * cfg.mlFactor[0])).replace('{max}', fmt(y * cfg.mlFactor[1])));
           dVal.textContent = fmt(st.dose, 1) + '\u00a0g';
           rVal.textContent = '1:' + fmt(st.ratio, 1);
           stp.minus.disabled = st.dose <= cfg.doseMin; stp.plus.disabled = st.dose >= cfg.doseMax;
           cards.forEach(function (c) { c.el.setAttribute('aria-checked', c.id === st.preset ? 'true' : 'false'); });
           if (presetNote) {
             var p = cfg.presets.filter(function (x) { return x.id === st.preset; })[0];
-            presetNote.innerHTML = p && p.note ? rich(p.note) : 'Proporção personalizada.';
+            presetNote.innerHTML = p && p.note ? rich(p.note) : 'Proporção do seu jeito.';
           }
           store.set('bambino.ratio', st);
         }
@@ -1965,7 +1944,7 @@
     var scaleMax = Math.max(40, Math.ceil((tmax + 12) / 5) * 5);
     var def = {
       title: 'Cronômetro do shot', shortTitle: 'Cronômetro',
-      build: function (ctx) {
+      build: function () {
         var f = [];
         var target = +store.get('bambino.timerTarget', 0) || 0;
         var band = (tmax - tmin) / scaleMax * 100, bandStart = tmin / scaleMax * 100;
@@ -1975,14 +1954,13 @@
           '<circle class="ring-track" cx="50" cy="50" r="45" pathLength="100"/>' +
           '<circle class="ring-band" cx="50" cy="50" r="45" pathLength="100" stroke-dasharray="' + band.toFixed(2) + ' 100" stroke-dashoffset="' + (-bandStart).toFixed(2) + '"/>' +
           '<circle class="ring-prog" cx="50" cy="50" r="45" pathLength="100" stroke-dasharray="0 100"/></g>' +
-          '<line class="ring-target" x1="50" y1="2" x2="50" y2="10" transform="rotate(0 50 50)" hidden/></svg>' +
-          '<div class="ring-center">' + ic('cup', { size: 26, cls: 'ring-cup' }) +
-          '<div class="timer-digits" role="timer" aria-label="Tempo do shot"><span class="tv">0,0</span><small>s</small></div></div></div>' +
-          '<div class="timer-status" aria-live="polite"></div>' +
-          '<div class="timer-legend" aria-hidden="true"><i></i>Faixa de referência ' + tmin + '–' + tmax + '\u00a0s</div>';
+          '<line class="ring-target" x1="50" y1="1" x2="50" y2="11" transform="rotate(0 50 50)" hidden/></svg>' +
+          '<div class="ring-center"><div class="timer-digits" role="timer" aria-label="Tempo do shot"><span class="tv">0,0</span><small>s</small></div></div></div>' +
+          '<p class="timer-status" aria-live="polite"></p>' +
+          '<p class="timer-legend" aria-hidden="true"><i></i><span>' + rich('Faixa de referência ' + tmin + '–' + tmax + ' s') + '</span></p>';
         f.push(face);
 
-        // Quick-select pills: choose a target time (marked on the ring) or none.
+        // Quick-select: a target time (marked on the ring) or none.
         var pills = el('div', 'pills');
         pills.setAttribute('role', 'radiogroup'); pills.setAttribute('aria-label', 'Alvo de tempo');
         var popts = [{ v: 0, l: 'Sem alvo' }, { v: tmin, l: tmin + '\u00a0s' }, { v: tmax, l: tmax + '\u00a0s' }];
@@ -2002,16 +1980,12 @@
         var reset = rb('reset', 'reset', 'Zerar'), main = rb('start', 'play', 'Iniciar', true), stopB = rb('stop', 'stop', 'Parar');
         btns.appendChild(reset); btns.appendChild(main); btns.appendChild(stopB);
         f.push(btns);
-        if (tm.note || !arr(tm.tips).length) f.push(BLOCKS.callout({ tone: 'info', text: tm.note || 'Com café já moído e cesto pressurizado, o tempo diz pouco: o cesto segura a pressão sozinho. Use a faixa de ' + tmin + '–' + tmax + ' s como referência e decida pelo peso na xícara e pelo sabor.' }));
         if (arr(tm.tips).length) {
-          f.push(secH(tm.tipsTitle || 'Como usar'));
-          var l = BLOCKS.list({ items: tm.tips });
-          var pw = el('div', 'prose'); pw.appendChild(l); f.push(pw);
+          f.push(listH('Como usar'));
+          var pw = el('div', 'prose flush'); pw.appendChild(BLOCKS.list({ items: tm.tips }));
+          f.push(pw);
         }
-        if (arr((C().preparar || {}).diagnostico).length) {
-          f.push(el('div', 'spacer'));
-          f.push(group([rowLink({ go: 'diagnostico', title: 'O shot saiu estranho?', sub: 'Abra o diagnóstico', lead: sq('wrench', 'terracotta') })], 'with-sq'));
-        }
+        if (arr((C().preparar || {}).diagnostico).length) f.push(nextLinks([{ go: 'diagnostico', title: 'O shot saiu estranho?' }]));
         var tv = face.querySelector('.tv'), status = face.querySelector('.timer-status'), prog = face.querySelector('.ring-prog'), tick = face.querySelector('.ring-target');
         var mainIc = main.querySelector('.rb-c'), mainL = main.querySelector('.rb-l');
         var lastZone = '';
@@ -2028,17 +2002,18 @@
             lastZone = key;
             prog.setAttribute('class', 'ring-prog ' + z);
             status.className = 'timer-status ' + z;
-            var txt = !z ? 'Toque em Iniciar ao apertar o botão da máquina' :
+            var txt = !z ? 'Toque em Iniciar junto com o botão da máquina' :
               z === 'under' ? (shot.running ? 'Abaixo de ' + tmin + ' s' : 'Parou antes de ' + tmin + ' s') :
                 z === 'in' ? 'Dentro da faixa de ' + tmin + '–' + tmax + ' s' : 'Passou de ' + tmax + ' s';
             if (z && !shot.running && !shot.finished) txt = 'Pausado em ' + fmt(s, 1) + '\u00a0s';
             if (hit) txt += '. Alvo de ' + target + ' s atingido';
-            status.textContent = txt;
+            status.innerHTML = rich(txt);
           }
           if (target) { tick.removeAttribute('hidden'); tick.setAttribute('transform', 'rotate(' + (target / scaleMax * 360) + ' 50 50)'); } else tick.setAttribute('hidden', '');
           pillEls.forEach(function (b, i) { b.setAttribute('aria-checked', popts[i].v === target ? 'true' : 'false'); });
           main.className = 'rb ' + (shot.running ? 'pause' : 'start');
-          mainIc.innerHTML = ic(shot.running ? 'pause' : 'play', { size: 34 });
+          var icon = shot.running ? 'pause' : 'play';
+          if (mainIc.dataset.icon !== icon) { mainIc.dataset.icon = icon; mainIc.innerHTML = ic(icon, { size: 34 }); }
           mainL.textContent = shot.running ? 'Pausar' : (s > 0 && !shot.finished ? 'Continuar' : 'Iniciar');
           main.setAttribute('aria-label', shot.running ? 'Pausar cronômetro' : (s > 0 && !shot.finished ? 'Continuar cronômetro' : 'Iniciar cronômetro'));
           reset.disabled = shot.running || s === 0;
@@ -2064,7 +2039,7 @@
           paint();
         });
         reset.addEventListener('click', function () { shot.elapsed = 0; shot.finished = false; lastZone = 'x'; paint(); });
-        def.repaint = function () { if (shot.running) loop(); else paint(); };
+        def.repaint = function () { if (shot.running) { cancelAnimationFrame(shot.raf); loop(); } else paint(); };
         paint();
         return frag(f);
       },
@@ -2086,40 +2061,34 @@
   function diagListPage() {
     var p = C().preparar || {};
     return {
-      title: p.diagnosticoTitle || 'Diagnóstico do espresso', shortTitle: 'Diagnóstico',
-      subtitle: p.diagnosticoIntro,
+      title: DIAG_TITLE, shortTitle: 'Diagnóstico',
       build: function (ctx) {
-        var f = [];
-        if (arr(p.diagnosticoBlocks).length) f.push(renderBlocks(p.diagnosticoBlocks, ctx));
-        else f.push(BLOCKS.compass(p.compass || {}));
-        f.push(secH('Como saiu o seu?'));
-        f.push(group(arr(p.diagnostico).map(function (d) {
-          return rowLink({ go: d.id, title: d.sintoma, sub: arr(d.sinais)[0] });
+        var f = [renderBlocks(p.diagnosticoBlocks, ctx)];
+        f.push(listH('Como saiu o seu?'));
+        f.push(indexList(arr(p.diagnostico).map(function (d) {
+          return indexRow({ go: d.id, title: d.sintoma, sub: arr(d.sinais)[0] });
         })));
         return frag(f);
       }
     };
   }
   function diagPage(d) {
+    var signs = arr(d.sinais);
     return {
       title: d.sintoma, shortTitle: 'Diagnóstico',
-      subtitle: d.resumo,
-      build: function (ctx) {
+      band: { tone: 'espresso', line: signs[0] },   // the first sign headlines the colour block
+      build: function () {
         var f = [];
-        if (arr(d.sinais).length) {
-          f.push(secH('Sinais', true));
-          f.push(group(arr(d.sinais).map(function (s) { var r = el('div', 'row'); r.innerHTML = '<div class="row-title">' + rich(s) + '</div>'; return r; })));
+        function section(title, node) { f.push(listH(title)); f.push(node); }
+        function bullets(items) {
+          var w = el('div', 'prose flush');
+          w.appendChild(BLOCKS.list({ items: items }));
+          return w;
         }
-        if (arr(d.causas).length) {
-          f.push(secH('Causas prováveis', true));
-          f.push(group(arr(d.causas).map(function (s) { var r = el('div', 'row'); r.innerHTML = '<div class="row-title">' + rich(s) + '</div>'; return r; })));
-        }
-        if (arr(d.ajustes).length) {
-          f.push(secH('O que ajustar, nesta ordem', true));
-          var s = BLOCKS.steps({ items: d.ajustes }); s.style.marginTop = '0'; f.push(s);
-        }
-        if (d.nota) f.push(BLOCKS.callout({ tone: 'tip', text: d.nota }));
-        f.push(relatedList(d.related));
+        if (signs.length > 1) section('Também aparece assim', bullets(signs.slice(1)));
+        if (arr(d.ajustes).length) section('O que mudar, nesta ordem', BLOCKS.steps({ items: d.ajustes }));
+        if (arr(d.causas).length) section('Por que acontece', bullets(d.causas));
+        f.push(nextLinks(d.related));
         return frag(f);
       }
     };
@@ -2152,6 +2121,7 @@
     histMirror = [location.hash || '#/comecar'];
     if (!location.hash) { history.replaceState(null, '', '#/comecar'); histMirror = ['#/comecar']; }
     window.addEventListener('hashchange', onRoute);
+    window.addEventListener('resize', function () { TABS.forEach(function (t) { stacks[t].forEach(function (p) { p.measure(); }); }); });
     onRoute();
     booted = true;
     if ('serviceWorker' in navigator && location.protocol !== 'file:') {
